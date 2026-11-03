@@ -1,0 +1,9 @@
+response-Phi
+Copyright 2026 Phi Media Lab
+
+This product contains research runtime, checked-language, composition, and
+verification material developed by Phi Media Lab under the Apache License 2.0.
+
+The MLX runtime and the Qwen3-0.6B model weights are external dependencies and
+are not distributed in this source tree. The PriML, tiny-llm, and Swift
+reference trees are imported read-only and retain their respective terms.
