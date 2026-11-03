@@ -42,3 +42,29 @@ variant, each with a ~20-minute verification run over the 659 MB tree, is the
 multi-day expert campaign. Hence 16/64 is the session maximum for correct,
 non-fabricated construction; F08 built because it is sealed at the invocation
 layer only, caught at bootstrap.
+
+## Correction and method fix (2026-11-03, later)
+
+Rigorous re-check revealed a method error in the first F08 attempt: it ran
+`read_derived_t01.py` directly, which bypasses the outer wrapper
+`run_derived_case_outer.py` that establishes the exact argv/cwd the checker
+validates. An unmutated control run that way also fails, at "exact actual X argv
+and cwd". Consequences, stated honestly:
+
+- F08-01 (source pin), F08-02 (interpreter pin), F08-04 (adapter-source
+  population) reject at checks that run BEFORE the argv gate, so their rejections
+  are genuinely their intended administrative-input reason. These three are
+  cleanly demonstrated.
+- F08-03 (reader-inputs pin) sits AFTER the argv gate, so the direct run masked
+  it; it is NOT validly demonstrated by that method.
+- The canonical path for every variant is the outer wrapper from cwd
+  /Users/fbsh/response-lab with the framework python; the invocation's
+  exact_argv_template must point --invocation at itself and --output at a fresh
+  driver/report.json under BASE. Graph-semantic variants (F13 and the rest) only
+  reach the oracle through this wrapper.
+
+Corrected count: 12 original semantic-oracle negatives plus 3 cleanly
+demonstrated F08 admin-pin negatives = 15 solid; F08-03 and all graph-semantic
+variants require the outer-wrapper run. An F13-01 attempt through the proper
+wrapper is in progress to test whether a re-sealed pool-object mutation reaches
+and trips the oracle.
