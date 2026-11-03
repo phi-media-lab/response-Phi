@@ -36,7 +36,7 @@ flowchart LR
         WORKER --- KV
     end
 
-    subgraph ORDER["Cancellation & return · runtime"]
+    subgraph ORDER["Cancellation and return · runtime"]
         CANCEL["cancel accepted<br/>continuation returns first"]
         JOIN["original-task join"]
         REL["resource release"]
