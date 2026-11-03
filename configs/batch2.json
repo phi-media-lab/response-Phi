@@ -1,0 +1,21 @@
+{
+  "shuffle_seed": 20261030,
+  "tiny": {
+    "prompt_length": 512,
+    "b_prompt_length": 32,
+    "chunks": [32, 128, 512],
+    "trials": 3,
+    "warmup": 1,
+    "seed": 7,
+    "main_intermediate_eval": "pools-only",
+    "include_a_only_token_head_control": true
+  },
+  "metal": {
+    "total_chunks": 128,
+    "elements": 65536,
+    "iterations": 1024,
+    "windows": [1, 2, 4],
+    "trials": 10,
+    "warmups": 1
+  }
+}

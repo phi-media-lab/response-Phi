@@ -1,0 +1,54 @@
+{
+  "schema": "cm1-runtime-baseline-origins-v1",
+  "purpose": "exact initial copies before CM1 edits; no build or execution",
+  "files": [
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/JSON.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/JSON.swift",
+      "bytes": 13856,
+      "baseline_sha256": "82dc211aafcb91104b487ae3aa019a0814bb3a677470d533c91921976f23524d"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/Program.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/Program.swift",
+      "bytes": 34857,
+      "baseline_sha256": "65b54e827736be18603df6f11f7d85e0d773355c08364c9e505955d2a29e1560"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/Values.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/Values.swift",
+      "bytes": 9245,
+      "baseline_sha256": "20d07f752e9c729cbaa91e8f219018e047bc6d4a0c75ec5da2064fa4fb8bf351"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/Registration.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/Registration.swift",
+      "bytes": 4117,
+      "baseline_sha256": "6f1421d877cb13e3b84fa233cc1f183dac53082fabca64496d1729ddcefd8edb"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/Wait.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/Wait.swift",
+      "bytes": 5044,
+      "baseline_sha256": "f74b8770b5b4a5deb0dd3e95e076da6ce38d63766186d3f93f61f68087c5efbf"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/PublicationWait.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/PublicationWait.swift",
+      "bytes": 13216,
+      "baseline_sha256": "7433155c2a7d25d073ce843f96e2788c7f21997b491b4a9b09151fd171a56cd7"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/Ledger.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/Ledger.swift",
+      "bytes": 97976,
+      "baseline_sha256": "0b9cbb38e04dbeef3a2d5859cae1b8e2562e092170832f797c261f45bed18057"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeCore/Machine.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/RuntimeCore/Machine.swift",
+      "bytes": 37329,
+      "baseline_sha256": "19feae991d8906ac879c9f09904249c1d22f0e6c81652e2f89985b5fd1aec9c7"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "cm1-transport-baseline-origins-v1",
+  "meaning": "Original frozen bytes before CM1 adaptations; not final identities.",
+  "files": [
+    {
+      "source": "/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/Support.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/MLXTransport/Support.swift",
+      "bytes": 11301,
+      "sha256": "c4313f7cdea2128b5812a9bbdff621943224ef093f0c17f91307fb665a320f27"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/Session.swift",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/MLXTransport/Session.swift",
+      "bytes": 37212,
+      "sha256": "34f4918d9c9cfc9d63661991bf98e6bb0cb99e7b0d3695848a47de97c0a38c35"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/worker.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/worker.py",
+      "bytes": 21193,
+      "sha256": "5b72b16356b70c0ef818880697c1d823c69e8155540174dc1adc001aba5ef8c2"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/stub_worker.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/stub_worker.py",
+      "bytes": 2853,
+      "sha256": "a33951ed07a9e08bdab569172e03244b9f30af09b8d58cfeb2526cd50e9241f7"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/prepare_inputs.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/prepare_inputs.py",
+      "bytes": 6136,
+      "sha256": "b33be925e2bad3da722bdf375667917f8c3fb136121292f88d0ef6f92b35a1ae"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/run_session.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/run_session.py",
+      "bytes": 18099,
+      "sha256": "221322459471f044d7f447bc54275a14de9b6c16cc66ffa500f1e259c704a452"
+    }
+  ]
+}

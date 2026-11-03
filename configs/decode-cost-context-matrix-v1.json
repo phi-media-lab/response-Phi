@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "kind": "decode-cost-context-shape-order",
+  "plan": "docs/P1_DECODE_EXTENSION_PLAN.md",
+  "source_template": "/Users/fbsh/response-lab/results/batch5/decode-cost-smoke-v5/cost-200",
+  "source_template_manifest_sha256": "b3cfcba98949349850d94e67eed529e804b3cdeb11172424be7ab32c27ee990f",
+  "policies": [
+    "no-b",
+    "whole",
+    "fixed-32",
+    "fixed-128",
+    "fixed-512",
+    "cost-200"
+  ],
+  "cost_policy_changes_allowed": false,
+  "shape_order": [
+    {
+      "shape_id": "a64-b1024-anchor4",
+      "shape": {
+        "a_prompt_length": 64,
+        "b_prompt_length": 1024,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 4
+      },
+      "no_b_model_inputs": 104,
+      "b_present_model_inputs": 1128,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "输出刚开始时收到较长输入B；A自身为短上下文",
+      "reuse_existing_S0": true
+    },
+    {
+      "shape_id": "a64-b1024-anchor32",
+      "shape": {
+        "a_prompt_length": 64,
+        "b_prompt_length": 1024,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 32
+      },
+      "no_b_model_inputs": 104,
+      "b_present_model_inputs": 1128,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "A还剩8步decode时收到较长输入B；A自身为短上下文",
+      "reuse_existing_S0": false
+    },
+    {
+      "shape_id": "a64-b4096-anchor4",
+      "shape": {
+        "a_prompt_length": 64,
+        "b_prompt_length": 4096,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 4
+      },
+      "no_b_model_inputs": 104,
+      "b_present_model_inputs": 4200,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "输出刚开始时收到4096-token长输入B；A自身为短上下文",
+      "reuse_existing_S0": false
+    },
+    {
+      "shape_id": "a64-b4096-anchor32",
+      "shape": {
+        "a_prompt_length": 64,
+        "b_prompt_length": 4096,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 32
+      },
+      "no_b_model_inputs": 104,
+      "b_present_model_inputs": 4200,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "A还剩8步decode时收到4096-token长输入B；A自身为短上下文",
+      "reuse_existing_S0": false
+    },
+    {
+      "shape_id": "a1024-b1024-anchor4",
+      "shape": {
+        "a_prompt_length": 1024,
+        "b_prompt_length": 1024,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 4
+      },
+      "no_b_model_inputs": 1064,
+      "b_present_model_inputs": 2088,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "输出刚开始时收到较长输入B；A自身已带1024-token上下文",
+      "reuse_existing_S0": false
+    },
+    {
+      "shape_id": "a1024-b1024-anchor32",
+      "shape": {
+        "a_prompt_length": 1024,
+        "b_prompt_length": 1024,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 32
+      },
+      "no_b_model_inputs": 1064,
+      "b_present_model_inputs": 2088,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "A还剩8步decode时收到较长输入B；A自身已带1024-token上下文",
+      "reuse_existing_S0": false
+    },
+    {
+      "shape_id": "a1024-b4096-anchor4",
+      "shape": {
+        "a_prompt_length": 1024,
+        "b_prompt_length": 4096,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 4
+      },
+      "no_b_model_inputs": 1064,
+      "b_present_model_inputs": 5160,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "输出刚开始时收到4096-token长输入B；A自身已带1024-token上下文",
+      "reuse_existing_S0": false
+    },
+    {
+      "shape_id": "a1024-b4096-anchor32",
+      "shape": {
+        "a_prompt_length": 1024,
+        "b_prompt_length": 4096,
+        "a_decode_steps": 40,
+        "arrival_after_a_decode": 32
+      },
+      "no_b_model_inputs": 1064,
+      "b_present_model_inputs": 5160,
+      "a_output_tokens": 41,
+      "b_present_total_output_tokens": 42,
+      "correctness_cells": 6,
+      "main_cells": 36,
+      "warmup_trials": 36,
+      "scenario": "A还剩8步decode时收到4096-token长输入B；A自身已带1024-token上下文",
+      "reuse_existing_S0": false
+    }
+  ],
+  "existing_S0_matrix": "results/batch5/decode-cost-s0-matrix-v1",
+  "gates": "Complete and independently audit S0 matrix first. For each remaining shape, six correctness smokes must pass independent review before its 36-cell predeclared Williams matrix. Stop on failure/unknown, preserve original output, no retry replacement.",
+  "reporting": "Separate each shape/anchor. Pair within the six blocks of the same shape; do not pool unlike shapes or count tokens as independent repeats. Preserve B tail after A ends.",
+  "execution_status": "This file fixes shape order only; it does not assert any unexecuted shape is prepared or measured.",
+  "total_shapes": 8,
+  "total_correctness_cells": 48,
+  "total_main_cells": 288,
+  "total_warmup_trials": 288,
+  "small_shape_smokes_excluded": true
+}

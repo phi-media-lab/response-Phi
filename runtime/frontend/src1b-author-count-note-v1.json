@@ -1,0 +1,11 @@
+{
+  "schema": "src1b-author-metadata-count-note-v1",
+  "at_utc": "2026-11-01T02:16:21.858303+00:00",
+  "actual_tool_chunk": "8782c9",
+  "actual_exit_code": 1,
+  "failure": "AST-only metadata writer asserted 21 test methods; actual source population was 20. This was an author counting error, not a candidate/test execution.",
+  "actual_output": "Traceback (most recent call last):\n  File \"<stdin>\", line 40, in <module>\nAssertionError: 20\n",
+  "correction": "Use exact AST-counted20 method names; no candidate source or tests changed to match a fabricated pass.",
+  "candidate_imported_or_executed": false,
+  "compiler_or_tests_executed": false
+}

@@ -1,0 +1,909 @@
+--- baseline-source/frontend/export_parent.py
++++ runtime/frontend/export_parent.py
+@@ -0,0 +1,23 @@
++"""Fixed parent compiler: raw closed UTF-8 stdin, exactly one response on stdout."""
++from pathlib import Path
++import json
++import sys
++
++# -I intentionally removes cwd and PYTHONPATH; only this bound frontend root
++# supplies our four explicitly migrated packages.
++sys.path.insert(0,str(Path(__file__).resolve().parent))
++from p8source.sigma import fixed_parent_sigma
++from p8source.execution import prepare_execution
++
++def main():
++    data=sys.stdin.buffer.read(1048577)
++    response=prepare_execution(fixed_parent_sigma(),data)
++    json.dump(response,sys.stdout,ensure_ascii=True,separators=(",",":"));sys.stdout.write("\n");sys.stdout.flush()
++    return {"ready":0,"static-rejected":1,"execution-profile-not-supported":3,"infrastructure-error":2}[response["status"]]
++
++if __name__=="__main__":
++    try: code=main()
++    except BaseException:
++        import traceback
++        traceback.print_exc(file=sys.stderr);code=2
++    raise SystemExit(code)
+--- baseline-source/frontend/p8closure/schema.py
++++ runtime/frontend/p8closure/schema.py
+@@ -65,7 +65,7 @@
+             parsed = old.convert(raw, "kind", key)
+             return "plain" if parsed == "plain" else (
+                 self.resolver.ref(parsed[0], "Owner"), self.resolver.ref(parsed[1], "Epoch"))
+-        if conversion in ("mode", "nat", "role", "wait_mode"):
++        if conversion in ("mode", "nat", "role", "wait_mode", "service_literal", "capability_literal"):
+             return old.convert(raw, conversion, key)
+         raise FoundationError("unclassified field: " + key + "/" + conversion)
+ 
+--- baseline-source/frontend/p8foundation/resolve.py
++++ runtime/frontend/p8foundation/resolve.py
+@@ -29,6 +29,7 @@
+ ATOM_REFS = {"Alloc": {}, "Raise": {}, "Enter": {"scope": "Scope"},
+     "Register": {"scope": "Scope"}, "Issue": {"owner": "Owner"}, "Read": {"owner": "Owner"},
+     "HostInput": {"owner": "Owner"}, "HostResponse": {"owner": "Owner"},
++    "HostService": {"scope": "Scope"}, "LocalRead": {},
+     "Need": {"job": "Job"}, "WaitDetach": {"job": "Job"},
+     "RequestCancel": {"job": "Job"}, "Drain": {"scope": "Scope"}}
+ FOOT_SORTS = {"scope": ("Scope", "Region"), "lease": ("Scope", "Owner", "Epoch", "Lease", "Region"),
+@@ -154,6 +155,9 @@
+                 resolved = "plain" if field == "plain" else (self.ref(field[0], "Owner"), self.ref(field[1], "Epoch"))
+             elif schema[key] in ("type", "size", "foot", "effect"):
+                 resolved = self.resolve(field)
++            elif schema[key] in ("service_literal", "capability_literal"):
++                from p8static.parser import convert
++                resolved = convert(field,schema[key],key)
+             elif (family, key) in (("type", "mode"), ("relation", "ordinal"), ("relation", "role"), ("atom", "mode")):
+                 resolved = field
+             else:
+--- baseline-source/frontend/p8source/body.py
++++ runtime/frontend/p8source/body.py
+@@ -377,6 +377,48 @@
+         if tag=="call": return self.call(raw,state,path,expected)
+         if tag=="await": return self.await_shared(raw,state,path,expected)
+         if tag=="await_cancel": return self.await_cancel_shared(raw,state,path,expected)
++        if tag in ("call_service","call_tool"):
++            from p8closure.caller import InScope
++            require(self.sigma.parent,"parent command requires fixed parent Sigma")
++            # Only an actual lexical ScopeStep beneath private INIT carries
++            # authority. Symbolic lambda callers and inherited worlds do not.
++            current=state.pc.caller;original=current
++            while isinstance(original,InScope): original=original.parent
++            origin=state.pc.world.init_origin
++            require(origin is not None and isinstance(original,Caller)
++                    and original.job==origin.get("main") and original.task==origin.get("task"),
++                    "parent command requires original INIT main Job")
++            require(isinstance(current,InScope) and current.origin.get("kind")=="plain",
++                    "parent command requires current plain scope")
++            children=[];holds=[]
++            if tag=="call_service":
++                scope,state,d=self.value(raw["scope"],state,path+("scope",));children.append(d)
++                require(isinstance(scope.type,RNode) and scope.type.tag=="Scope"
++                        and scope.type.get("kind")=="plain","CALL_SERVICE needs plain Scope")
++                require(scope.type.get("scope")==current.origin.get("scope")
++                        and scope.type.get("region")==current.origin.get("region"),
++                        "CALL_SERVICE requires current innermost scope")
++                self.check_hold(scope,state);holds.append(scope.hold)
++                operand,state,d=self.value(raw["tokens"],state,path+("tokens",));children.append(d)
++                parameter,result=self.sigma.host_service(raw["name"])
++                self.same(operand.type,parameter,state,"CALL_SERVICE tokens must be Tokens8")
++                eps=effect(node("atom","HostService",scope=current.origin.get("scope"),service="B"),node("atom","Raise"))
++                detail=self.sigma.host_service_boundary()
++            else:
++                operand,state,d=self.value(raw["argument"],state,path+("argument",));children.append(d)
++                parameter,result=self.sigma.tool(raw["name"])
++                self.same(operand.type,parameter,state,"CALL_TOOL argument must be Word")
++                eps=effect(node("atom","LocalRead",capability="tokenizer_vocab_v1"),node("atom","Raise"))
++                detail=self.sigma.tool_boundary()
++            self.check_hold(operand,state);holds.append(operand.hold)
++            view=node("view","ParentHostResult",site=self.site(path),command=tag,
++                      scope=current.origin.get("scope"),argument=operand.view)
++            value=self.made(result,view,state,"parent-host-result",tuple(holds))
++            if expected is not None:self.same(result,expected,state,"parent command result type")
++            failure=node("failure","current-caller",caller=caller_key(state.pc.caller),site=self.site(path))
++            # No scope completion/response provenance/Task is synthesized here.
++            return self.finish(tag,path,result,eps,(Normal(value,state),),
++                               (self.exception(state,failure),),tuple(children),detail=detail)
+         if tag=="receive_request":
+             # Possessing an inherited world, Owner or caller requirements is not
+             # evidence of being the private INIT main. In particular ordinary
+--- baseline-source/frontend/p8source/entry.py
++++ runtime/frontend/p8source/entry.py
+@@ -75,8 +75,9 @@
+     try:
+         checker.path=("main",)
+         validate_closed_document(source)
+-        from .sigma import check_sigma
++        from .sigma import check_sigma, validate_source_profile
+         check_sigma(trusted_sigma)
++        validate_source_profile(trusted_sigma,source,closed=True)
+         sigma=trusted_sigma.checked()
+         digest=hashlib.sha256(json.dumps(source,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+         checker=Checker(digest,trusted_sigma)
+@@ -118,8 +119,10 @@
+ 
+ 
+ def check_open_fragment(trusted_sigma,source):
+-    from .sigma import check_sigma
+-    try: check_sigma(trusted_sigma)
++    from .sigma import check_sigma, validate_source_profile
++    try:
++        check_sigma(trusted_sigma)
++        validate_source_profile(trusted_sigma,source,closed=False)
+     except FoundationError as error:
+         return SourceResult("semantic-no",diagnostic={"code":"semantic-no","path":[],"message":str(error)})
+     return check_document(source,trusted_sigma)
+--- baseline-source/frontend/p8source/execution.py
++++ runtime/frontend/p8source/execution.py
+@@ -13,7 +13,6 @@
+ 
+ RESPONSE="p8-runtime-frontend-response-v1"
+ PROGRAM="p8-runtime-checked-program-v1"
+-PROFILE="src1-response-offer-owner1-v1"
+ 
+ class ProfileError(Exception):
+     def __init__(self,code,message,path=()):
+@@ -90,8 +89,8 @@
+         return {"ref":str(index)}
+ 
+ class Exporter:
+-    def __init__(self,source,result,data):
+-        self.source=source;self.result=result;self.data=data
++    def __init__(self,source,result,data,sigma):
++        self.source=source;self.result=result;self.data=data;self.sigma=check_sigma(sigma)
+         self.digest=hashlib.sha256(json.dumps(source,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")).hexdigest()
+         self.nodes=source_index(source);self.table=StaticTable();self.records={}
+     def id_site(self,path): return site(self.digest,path)
+@@ -223,9 +222,9 @@
+                 stack.append(detail.get("ghost_child"))
+         needed(set(self.records)==set(self.nodes),"final checked source annotations incomplete")
+         root=self.records[("main","body")]
+-        program={"schema":PROGRAM,"profile":PROFILE,"source":{"utf8_base64":base64.b64encode(self.data).decode("ascii"),
++        program={"schema":PROGRAM,"profile":self.sigma.profile,"source":{"utf8_base64":base64.b64encode(self.data).decode("ascii"),
+                  "bytes_sha256":hashlib.sha256(self.data).hexdigest(),"canonical_sha256":self.digest},
+-                 "sigma":wire_sigma(),"static_values":self.table.values,
++                 "sigma":wire_sigma(self.sigma),"static_values":self.table.values,
+                  "sites":[self.records[p] for p in self.nodes],
+                  "entry":{"site":root["site"],"result_type":root["type"],"effect":root["effect"]}}
+         return program
+@@ -239,7 +238,7 @@
+             diagnostic={"phase":phase,**(result.diagnostic or {"code":result.verdict,"path":[],"message":result.verdict})}
+             status="infrastructure-error" if result.verdict=="infrastructure-error" else "static-rejected"
+             return {"schema":RESPONSE,"status":status,"program":None,"diagnostic":diagnostic}
+-        phase="execution-profile";program=Exporter(raw,result,source_bytes).build()
++        phase="execution-profile";program=Exporter(raw,result,source_bytes,sigma).build()
+         response={"schema":RESPONSE,"status":"ready","program":program,"diagnostic":None}
+         needed(len(json.dumps(response,ensure_ascii=True,separators=(",",":")).encode("utf-8"))<=67108864,"compiler response exceeds 64 MiB")
+         return response
+--- baseline-source/frontend/p8source/inference.py
++++ runtime/frontend/p8source/inference.py
+@@ -339,6 +339,25 @@
+             label="AWAIT?" if tag=="await_cancel" else "AWAIT"
+             self.deferred.append((known_shared,label+" needs complete Shared job and payload",False))
+             return result
++        if tag in ("call_service","call_tool"):
++            require(self.checker.sigma.parent,"parent command requires fixed parent Sigma")
++            if tag=="call_service":
++                scope=self.value(raw["scope"],env,state);self.dependent.append(scope)
++                parameter,output=self.checker.sigma.host_service(raw["name"])
++                self.value(raw["tokens"],env,state,parameter)
++                def check_scope(default=False):
++                    t=deref(scope)
++                    if isinstance(t,Hole):return False
++                    require(isinstance(t,RNode) and t.tag=="Scope" and t.get("kind")=="plain",
++                            "bottom CALL_SERVICE needs plain Scope")
++                    return True
++                self.deferred.append((check_scope,"CALL_SERVICE needs complete Scope",False))
++            else:
++                parameter,output=self.checker.sigma.tool(raw["name"])
++                self.value(raw["argument"],env,state,parameter)
++            # Collection is not authority. Completed body is checked again,
++            # including exact private caller/current scope and effect/frame.
++            self.unify(result,output);return result
+         if tag=="receive_request":
+             owner=self.value(raw["owner"],env,state);self.dependent.append(owner)
+             self.unify(result,self.checker.sigma.host_input(raw["name"]))
+--- baseline-source/frontend/p8source/sigma.py
++++ runtime/frontend/p8source/sigma.py
+@@ -1,5 +1,6 @@
+ """Fixed host registry; serialized registrations never grant authority."""
+ from dataclasses import dataclass
++import json
+ from p8foundation.model import node, require
+ 
+ SIGMA_ID="p8-src1-fixed-sigma-v1"
+@@ -45,6 +46,8 @@
+ 
+ @dataclass(frozen=True)
+ class FixedSigma:
++    profile="src1-response-offer-owner1-v1"
++    parent=False
+     def checked(self):
+         return node("signature","checked-registry",id=SIGMA_ID,abi=SIGMA_ABI,
+                     entries=tuple(node("signature","fixed",name=n,kind=k,implementation_id=i) for n,k,i in OPERATIONS),
+@@ -69,10 +72,68 @@
+ 
+ def fixed_sigma(): return FixedSigma()
+ def check_sigma(value):
+-    require(type(value) is FixedSigma,"fixed host Sigma required")
++    require(type(value) in (FixedSigma,FixedParentSigma),"fixed host Sigma required")
+     return value
+-def wire_sigma():
++def wire_sigma(sigma=None):
++    if sigma is not None:
++        check_sigma(sigma)
++        if sigma.parent:return json.loads(PARENT_WIRE_JSON)
+     return {"id":SIGMA_ID,"abi":SIGMA_ABI,
+             "operations":[{"name":n,"kind":k,"implementation":i} for n,k,i in OPERATIONS],
+             "backend_contract":backend_contract(),"host_input_contract":host_input_contract(),
+             "host_response_contract":host_response_contract()}
++
++
++# Immutable fixed trusted registry text; every wire caller gets a fresh object.
++PARENT_WIRE_JSON='{"id":"p8-src1b-parent-fixed-sigma-v1","abi":"p8-src1b-parent-runtime-sigma-abi-v1","operations":[{"name":"body_error","kind":"pure","implementation":"body-error-unit-v1"},{"name":"B","kind":"host-service","implementation":"src1b-leaf-response-host-close-v1"},{"name":"tokenizer.vocab_symbol","kind":"readonly-tool","implementation":"src1b-vocab-symbol-utf8-sha256-v1"}],"host_parent_contract":{"id":"src1b-host-parent-v1","execution_domain":"hostParent","direct_backend":"none","caller":"init-main-job-only","scope_kind":"plain","service_instances":1,"scope_exit":"actual-host-close-before-parent-publication-v1","registry":"fixed-leaf-no-parent-callback-v1"},"host_service_contract":{"id":"src1b-response-and-host-close-v1","name":"B","command":"call_service","argument_type":"Tokens8","result_type":"Word","child_profile":"src1-response-offer-owner1-v1","delivery":"after-source-join","response":"original-commit-requester-delivered-once-v1","responsibility":"parent-scope-HostClose-v1","submission":"reserve-gated-commit-start-v1"},"tool_contract":{"id":"src1b-tokenizer-vocab-symbol-v1","name":"tokenizer.vocab_symbol","command":"call_tool","capability":"tokenizer_vocab_v1","argument_type":"Word","result_type":"ToolInfo-v1","representation":"bpe-vocab-symbol-utf8-v1","authority_sha256":"aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4","max_file_bytes":12582912,"work_budget_ns":2000000000,"added_token_policy":"error-unsupported","missing_token_policy":"error-missing","effect":"readonly-file-io-plus-raise-v1"}}'
++PARENT_FORBIDDEN=frozenset(("new_owner","run","produce","fork","receive_request","offer_response","await","await_cancel","request_cancel","load"))
++
++
++def tool_info_type():
++    return node("type","Pair",left=node("type","Nat"),right=tokens_type(4))
++
++
++@dataclass(frozen=True)
++class FixedParentSigma:
++    profile="src1b-parent-host-close-v1"
++    parent=True
++    def checked(self):
++        wire=wire_sigma(self)
++        return node("signature","checked-parent-registry",id=wire["id"],abi=wire["abi"],
++                    entries=tuple(node("signature","fixed",name=o["name"],kind=o["kind"],implementation_id=o["implementation"]) for o in wire["operations"]),
++                    host_parent_contract=node("signature","host-parent-contract",**wire["host_parent_contract"]),
++                    host_service_contract=self.host_service_boundary(),tool_contract=self.tool_boundary())
++    def pure(self,name):
++        require(name=="body_error","unregistered pure operation")
++        return (node("type","Unit"),),node("type","ErrorPayload")
++    def host_service(self,name):
++        require(name=="B","unregistered host-service name")
++        return tokens_type(8),node("type","Word")
++    def host_service_boundary(self):
++        return node("signature","host-service-contract",**wire_sigma(self)["host_service_contract"])
++    def tool(self,name):
++        require(name=="tokenizer.vocab_symbol","unregistered readonly-tool name")
++        return node("type","Word"),tool_info_type()
++    def tool_boundary(self):
++        return node("signature","readonly-tool-contract",**wire_sigma(self)["tool_contract"])
++
++
++def fixed_parent_sigma(): return FixedParentSigma()
++
++
++def validate_source_profile(sigma,source,*,closed):
++    """Declarations do not acquire capabilities merely because parser knows atoms."""
++    check_sigma(sigma)
++    require(not sigma.parent or closed,"parent profile requires private closed INIT main")
++    stack=[source]
++    while stack:
++        value=stack.pop()
++        if type(value) is dict:
++            command=value.get("command")
++            if sigma.parent:
++                require(type(command) is not str or command not in PARENT_FORBIDDEN,"command prohibited by parent profile: "+str(command))
++            else:
++                require(command not in ("call_service","call_tool"),"parent command prohibited by child profile")
++                require(value.get("atom") not in ("HostService","LocalRead"),"parent effect prohibited by child profile")
++            stack.extend(value.values())
++        elif type(value) is list:stack.extend(value)
+--- baseline-source/frontend/p8source/source_schema.py
++++ runtime/frontend/p8source/source_schema.py
+@@ -17,7 +17,9 @@
+    "unpack":("package","names","name","body"), "drop":("value","next"),
+    "throw":("payload",), "rethrow":("failure",), "try":("body","failure_name","handler"),
+    "load":("read","index"), "receive_request":("name","owner"),
+-   "offer_response":("name","owner","token"), "await":("shared",), "await_cancel":("shared",),
++   "offer_response":("name","owner","token"),
++   "call_service":("name","scope","tokens"), "call_tool":("name","argument"),
++   "await":("shared",), "await_cancel":("shared",),
+    "new_owner":("value","names","name","body"),
+    "scope":("names","name","body"), "run":("owner","names","name","body"),
+    "produce":("scope","kernel","argument","names","cleanup","result_name","control_name","next"),
+@@ -43,6 +45,8 @@
+  ("command","load"):(("read","value"),("index","value")),
+  ("command","receive_request"):(("owner","value"),),
+  ("command","offer_response"):(("owner","value"),("token","value")),
++ ("command","call_service"):(("scope","value"),("tokens","value")),
++ ("command","call_tool"):(("argument","value"),),
+  ("command","await"):(("shared","value"),),
+  ("command","await_cancel"):(("shared","value"),),
+  ("command","new_owner"):(("value","value"),("body","command")),
+@@ -79,7 +83,10 @@
+     if family=="command" and tag=="let_c" and "bind_type" in raw: keys.add("bind_type")
+     old.obj(raw, keys, repr(path))
+     for key in ("name","left_name","right_name","failure_name","result_name","control_name"):
+-        if key in raw: old.ident(raw[key], repr(path + (key,)))
++        if key in raw:
++            if family=="command" and tag=="call_tool" and key=="name":
++                require(raw[key]=="tokenizer.vocab_symbol","fixed readonly-tool name")
++            else: old.ident(raw[key], repr(path + (key,)))
+     if family=="command" and tag in GENERATION_SORTS:
+         names=tuple(old.name(n,"generation.name") for n in old.sequence(raw["names"],"generation.names"))
+         require(tuple(n.sort for n in names)==GENERATION_SORTS[tag],"generation ordered name sorts")
+--- baseline-source/frontend/p8static/parser.py
++++ runtime/frontend/p8static/parser.py
+@@ -61,6 +61,7 @@
+ ATOM_FIELDS={
+     'Alloc':{},'Raise':{},'Enter':{'scope':'id'},'Register':{'scope':'id'},
+     'Issue':{'owner':'id'},'Read':{'owner':'id'},'HostInput':{'owner':'id'},'HostResponse':{'owner':'id'},'Need':{'job':'id','mode':'wait_mode'},
++    'HostService':{'scope':'id','service':'service_literal'},'LocalRead':{'capability':'capability_literal'},
+     'WaitDetach':{'job':'id'},'RequestCancel':{'job':'id'},'Drain':{'scope':'id'},
+ }
+ 
+@@ -95,6 +96,10 @@
+     return tagged(value,'node',schemas,lambda tag,f:Node(family,tag,f),where)
+ 
+ def convert(value,kind,where):
++    if kind in ('service_literal','capability_literal'):
++        wanted={'service_literal':'B','capability_literal':'tokenizer_vocab_v1'}[kind]
++        if type(value) is not str or value != wanted:fail(where,'unknown '+kind)
++        return value
+     if kind in ('v','e','c'):return node(value,kind,where)
+     if kind=='id':return ident(value,where)
+     if kind=='optional_id':return None if value is None else ident(value,where)
+--- baseline-source/frontend/parent_decoder_mutations.py
++++ runtime/frontend/parent_decoder_mutations.py
+@@ -0,0 +1,103 @@
++"""Pure, finite decoder input mutations from a real parent ready exchange.
++
++No exporter/decoder execution or filesystem IO. The future runner must retain
++actual frontend stdin/stdout/exit evidence and independently freeze this oracle.
++Every case has a fresh deep copy; appended static objects cannot change shared
++original leaves. The source is never rewritten to conceal a tampered exchange.
++"""
++from copy import deepcopy
++import base64
++import hashlib
++import json
++
++CASES=(
++ ('unknown-profile','program version'),
++ ('wrong-sigma-id','fixed Sigma implementations'),
++ ('source-bytes-hash','exact source bytes'),
++ ('service-result-unit','parent fieldless Word contract'),
++ ('service-tokens-seven','parent complete Pair contract'),
++ ('tool-argument-nat','parent fieldless Word contract'),
++ ('tool-result-word-length','parent fieldless Nat contract'),
++ ('scope-kind','parent plain Scope kind'),
++ ('scope-identity','parent current scope nominal correspondence'),
++ ('service-effect-literal','parent HostService fixed literal'),
++ ('service-effect-scope','parent current scope nominal correspondence'),
++ ('tool-capability','parent LocalRead fixed literal'),
++ ('missing-raise','parent exact effect arity'),
++ ('extra-effect','parent exact effect arity'),
++ ('command-direct-copy','parent command exact direct usage/frame'),
++)
++
++
++def _read(program,ref):
++    value=program['static_values'][int(ref['ref'])]
++    if value is None or type(value) in (str,bool):return value
++    if 'integer' in value:return int(value['integer'])
++    if 'array' in value:return [_read(program,v) for v in value['array']]
++    return {k:_read(program,v) for k,v in value['object']}
++
++
++def _append(program,value):
++    if value is None or type(value) in (str,bool):encoded=value
++    elif type(value) is int:encoded={'integer':str(value)}
++    elif type(value) is list:encoded={'array':[_append(program,v) for v in value]}
++    elif type(value) is dict:encoded={'object':[[k,_append(program,v)] for k,v in value.items()]}
++    else:raise TypeError('static JSON data required')
++    index=len(program['static_values']);program['static_values'].append(encoded)
++    return {'ref':str(index)}
++
++
++def _type(tag,**fields):return {'family':'type','tag':tag,'fields':fields}
++def _words(n):
++    value=_type('Word')
++    for _ in range(n-1):value=_type('Pair',left=_type('Word'),right=value)
++    return value
++
++
++def build_cases(source_bytes,response_bytes,actual_frontend_exit):
++    if type(source_bytes) is not bytes or type(response_bytes) is not bytes or type(actual_frontend_exit) is not int or actual_frontend_exit!=0:
++        raise ValueError('real source/response bytes and actual frontend exit0 required')
++    original=json.loads(response_bytes)
++    if original['status']!='ready' or original['schema']!='p8-runtime-frontend-response-v1':raise ValueError('actual ready response required')
++    program=original['program'];source=program['source']
++    if program['profile']!='src1b-parent-host-close-v1' or base64.b64decode(source['utf8_base64'],validate=True)!=source_bytes or source['bytes_sha256']!=hashlib.sha256(source_bytes).hexdigest():
++        raise ValueError('original checked parent source identity required')
++    origins={'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'response_sha256':hashlib.sha256(response_bytes).hexdigest(),'actual_frontend_exit':actual_frontend_exit}
++    result=[]
++    for case,message in CASES:
++        response=deepcopy(original);p=response['program']
++        def command(kind):
++            rows=[r for r in p['sites'] if r['node_kind']=='command:'+kind]
++            if len(rows)!=1:raise ValueError('one complete original '+kind+' site required')
++            return rows[0]
++        service=command('call_service');tool=command('call_tool')
++        def child(row,suffix):
++            return next(r for r in p['sites'] if r['site']['pointer']==row['site']['pointer']+'/'+suffix)
++        scope=child(service,'scope');tokens=child(service,'tokens');argument=child(tool,'argument')
++        def edit(row,key,change):
++            value=_read(p,row[key]);change(value);row[key]=_append(p,value)
++        def different_scope(value):
++            # The existing INIT-private Scope is a well-shaped different identity.
++            value.clear();value['nominal']={'site':{'source_sha256':source['canonical_sha256'],'pointer':'/main/body'},'role':'init-private','index':'6','sort':'Scope'}
++        def operation(effect,tag):return next(x for x in effect['fields']['atoms'] if x['tag']==tag)
++        if case=='unknown-profile':p['profile']='src1b-forged-parent'
++        elif case=='wrong-sigma-id':p['sigma']['id']='not-the-fixed-registry'
++        elif case=='source-bytes-hash':p['source']['bytes_sha256']='0'*64
++        elif case=='service-result-unit':service['type']=_append(p,_type('Unit'))
++        elif case=='service-tokens-seven':tokens['type']=_append(p,_words(7))
++        elif case=='tool-argument-nat':argument['type']=_append(p,_type('Nat'))
++        elif case=='tool-result-word-length':edit(tool,'type',lambda v:v['fields'].__setitem__('left',_type('Word')))
++        elif case=='scope-kind':edit(scope,'type',lambda v:v['fields'].__setitem__('kind','forged'))
++        elif case=='scope-identity':edit(scope,'type',lambda v:different_scope(v['fields']['scope']))
++        elif case=='service-effect-literal':edit(service,'effect',lambda v:operation(v,'HostService')['fields'].__setitem__('service','C'))
++        elif case=='service-effect-scope':edit(service,'effect',lambda v:different_scope(operation(v,'HostService')['fields']['scope']))
++        elif case=='tool-capability':edit(tool,'effect',lambda v:operation(v,'LocalRead')['fields'].__setitem__('capability','other_file'))
++        elif case=='missing-raise':edit(service,'effect',lambda v:v['fields'].__setitem__('atoms',[a for a in v['fields']['atoms'] if a['tag']!='Raise']))
++        elif case=='extra-effect':edit(tool,'effect',lambda v:v['fields']['atoms'].append({'family':'atom','tag':'Raise','fields':{}}))
++        elif case=='command-direct-copy':service['usage']['copy']=deepcopy(scope['usage']['copy'])
++        else:raise AssertionError('unhandled fixed case')
++        if response==original:raise ValueError('case made no change: '+case)
++        # Old static-table bytes remain equal: mutations append independent DAGs.
++        if p['static_values'][:len(program['static_values'])]!=program['static_values']:raise ValueError('shared original static leaf changed')
++        result.append({'id':case,'expected_message':message,'input_origin':dict(origins),'response':response})
++    return result
+--- baseline-source/frontend/parent_fixture.py
++++ runtime/frontend/parent_fixture.py
+@@ -0,0 +1,54 @@
++"""Pure SRC1 B checked-parent source builders; no checking or execution on import.
++
++Tokens are original A-batch B8 input words, not a claimed B output/receipt.
++Actual parent evaluation and child request correspondence must be re-observed.
++"""
++from copy import deepcopy
++
++B8=(2127,19010,19287,13098,1724,7344,1626,72)
++
++def t(tag,**fields):return {"type":tag,**fields}
++def v(tag,**fields):return {"value":tag,**fields}
++def c(tag,**fields):return {"command":tag,**fields}
++def var(name):return v("var",name=name)
++def word(value):return v("word",literal=value)
++def ret(value=None):return c("return",value=v("unit") if value is None else value)
++def atom(tag,**fields):return {"atom":tag,**fields}
++def eff(*atoms):return {"effect":"set","atoms":list(atoms)}
++def pair_type(left,right):return t("Pair",left=left,right=right)
++def words_type(n):
++    value=t("Word")
++    for _ in range(n-1):value=pair_type(t("Word"),value)
++    return value
++
++def tokens_value(tokens=B8):
++    value=word(tokens[-1])
++    for token in reversed(tokens[:-1]):value=v("pair",left=word(token),right=value)
++    return value
++
++def tool_info_type():return pair_type(t("Nat"),words_type(4))
++def result_type():return pair_type(t("Word"),tool_info_type())
++def service(scope="s",tokens=None):
++    return c("call_service",name="B",scope=var(scope),tokens=var("requestTokens") if tokens is None else tokens)
++def tool(argument=None):
++    return c("call_tool",name="tokenizer.vocab_symbol",argument=var("b") if argument is None else argument)
++
++def in_scope(body,body_effect,result=None,prefix="Parent",name="s"):
++    names=[{"name":prefix+suffix,"sort":sort} for suffix,sort in (("S","Scope"),("R","Region"),("I","Invocation"))]
++    facts=[{"relation":"scope_shape","scope":prefix+"S","region":prefix+"R","kind":"plain"}]
++    local={"effect":"union","left":eff(atom("Enter",scope=prefix+"S"),atom("Drain",scope=prefix+"S"),atom("Raise")),"right":body_effect}
++    return {"schema":"p8-runtime-closed-source-v0.1","main":{
++        "result":t("Unit") if result is None else result,
++        "effect":{"effect":"nu","interface":{"names":deepcopy(names),"facts":facts},"body":local},
++        "body":c("scope",names=names,name=name,body=body)}}
++
++def source():
++    tail=ret(v("pair",left=var("b"),right=var("info")))
++    body=c("let_e",name="requestTokens",expression={"expression":"value","value":tokens_value()},
++        next=c("let_c",name="b",first=service(),next=c("let_c",name="info",first=tool(),next=tail)))
++    effects=eff(atom("HostService",scope="ParentS",service="B"),atom("LocalRead",capability="tokenizer_vocab_v1"),atom("Raise"))
++    return in_scope(body,effects,result_type())
++
++def service_node(raw):return raw["main"]["body"]["body"]["next"]["first"]
++def tool_node(raw):return raw["main"]["body"]["body"]["next"]["next"]["first"]
++def declared_atoms(raw):return raw["main"]["effect"]["body"]["right"]["atoms"]
+--- baseline-source/frontend/test_parent_host.py
++++ runtime/frontend/test_parent_host.py
+@@ -0,0 +1,140 @@
++#!/usr/bin/env python3
++"""First-run tests await independent source review; no execution in author turn."""
++from copy import deepcopy
++from pathlib import Path
++import json
++import sys
++import unittest
++
++sys.path.insert(0,str(Path(__file__).resolve().parent))
++import parent_fixture as f
++from p8source.entry import check_closed_main,check_open_fragment
++from p8source.execution import prepare_execution
++from p8source.sigma import fixed_parent_sigma,fixed_sigma,wire_sigma,PARENT_FORBIDDEN
++from p8source.binding import free_terms
++from p8source.source_schema import source_children
++
++
++def static(program,ref):
++    value=program['static_values'][int(ref['ref'])]
++    if value is None or type(value) in (str,bool):return value
++    if 'integer' in value:return int(value['integer'])
++    if 'array' in value:return [static(program,x) for x in value['array']]
++    return {k:static(program,v) for k,v in value['object']}
++
++
++class ParentHostTests(unittest.TestCase):
++    def accepted(self,raw):
++        result=check_closed_main(fixed_parent_sigma(),raw)
++        self.assertEqual(result.verdict,'checked-closed-main-source',result.diagnostic)
++        return result
++    def rejected(self,raw,message=None,sigma=None):
++        result=check_closed_main(fixed_parent_sigma() if sigma is None else sigma,raw)
++        self.assertIn(result.verdict,('semantic-no','unsupported'),result.diagnostic)
++        self.assertIsNone(result.derivation)
++        if message:self.assertIn(message,result.diagnostic['message'])
++        return result
++    def exported(self,raw):
++        data=json.dumps(raw,ensure_ascii=False,separators=(',',':')).encode()
++        response=prepare_execution(fixed_parent_sigma(),data)
++        self.assertEqual(response['status'],'ready',response['diagnostic'])
++        return response['program']
++    def test_complete_parent_profile_and_result(self):
++        raw=f.source();self.accepted(raw);program=self.exported(raw)
++        self.assertEqual(program['profile'],'src1b-parent-host-close-v1')
++        self.assertEqual(program['sigma'],wire_sigma(fixed_parent_sigma()))
++        self.assertEqual(sorted(program['sigma']),['abi','host_parent_contract','host_service_contract','id','operations','tool_contract'])
++        self.assertEqual(free_terms(raw['main']['body']),frozenset())
++    def test_exact_two_command_exports(self):
++        program=self.exported(f.source());rows={r['node_kind']:r for r in program['sites'] if r['node_kind'] in ('command:call_service','command:call_tool')}
++        self.assertEqual(set(rows),{'command:call_service','command:call_tool'})
++        expected={'command:call_service':('Word','HostService',{'service':'B'}),'command:call_tool':('Pair','LocalRead',{'capability':'tokenizer_vocab_v1'})}
++        for kind,(tag,atom,literals) in expected.items():
++            row=rows[kind];typ=static(program,row['type']);effect=static(program,row['effect'])
++            self.assertEqual((typ['family'],typ['tag']),('type',tag))
++            self.assertEqual((effect['family'],effect['tag']),('effect','set'))
++            atoms=effect['fields']['atoms'];self.assertEqual(sorted(a['tag'] for a in atoms),sorted([atom,'Raise']))
++            selected=next(a for a in atoms if a['tag']==atom)
++            for key,value in literals.items():self.assertEqual(selected['fields'][key],value)
++            self.assertEqual(row['usage']['copy'],[]);self.assertEqual(row['usage']['move'],[]);self.assertIsNone(row['frame'])
++        self.assertEqual(source_children(f.service(),'command')[0][0],('scope',))
++        self.assertEqual(source_children(f.service(),'command')[1][0],('tokens',))
++    def test_child_rejects_parent_commands(self):self.rejected(f.source(),'parent command prohibited',fixed_sigma())
++    def test_child_rejects_declaration_only_parent_effect(self):
++        for atom in (f.atom('LocalRead',capability='tokenizer_vocab_v1'),f.atom('HostService',scope='NoAuthority',service='B')):
++            raw={'schema':'p8-runtime-closed-source-v0.1','main':{'result':f.t('Unit'),'effect':f.eff(atom),'body':f.ret()}}
++            self.rejected(raw,'parent effect prohibited',fixed_sigma())
++    def test_child_original_empty_source_unchanged(self):
++        raw={'schema':'p8-runtime-closed-source-v0.1','main':{'result':f.t('Unit'),'effect':f.eff(),'body':f.ret()}}
++        self.assertEqual(check_closed_main(fixed_sigma(),raw).verdict,'checked-closed-main-source')
++        response=prepare_execution(fixed_sigma(),json.dumps(raw).encode())
++        self.assertEqual(response['status'],'ready');self.assertEqual(response['program']['profile'],'src1-response-offer-owner1-v1')
++        self.assertEqual(response['program']['sigma'],wire_sigma())
++    def test_parent_rejects_existing_backend_commands(self):
++        def names(sorts):return [{'name':'N'+str(i),'sort':sort} for i,sort in enumerate(sorts)]
++        commands=[f.c('new_owner',value=f.v('nat',literal=1),names=[{'name':'N','sort':'Size'},{'name':'O','sort':'Owner'}],name='owner',body=f.ret()),
++            f.c('run',owner=f.var('owner'),names=names(['Epoch','Scope','Region','Invocation']),name='runScope',body=f.ret()),
++            f.c('fork',scope=f.var('s'),names=names(['Job','Task','Invocation','Region']),job={'captures':[],'result':f.t('Unit'),'body':f.ret()},result_name='h',control_name='k',next=f.ret()),
++            f.c('produce',scope=f.var('s'),kernel='Prefill8',argument=f.tokens_value(),names=names(['Job','Task','Invocation','Region','Access','Access','Region']),
++                cleanup={'captures':[],'parameter':{'name':'r'},'result':f.t('Unit'),'body':f.ret()},result_name='h',control_name='k',next=f.ret()),
++            f.c('receive_request',name='B',owner=f.var('owner')),f.c('offer_response',name='B',owner=f.var('owner'),token=f.word(1)),
++            f.c('await',shared=f.var('h')),f.c('await_cancel',shared=f.var('h')),f.c('load',read=f.var('r'),index=f.v('nat',literal=0)),
++            f.c('request_cancel',control=f.var('k'),next=f.ret())]
++        self.assertEqual({x['command'] for x in commands},set(PARENT_FORBIDDEN))
++        for command in commands:
++            with self.subTest(command=command['command']):self.rejected(f.in_scope(command,f.eff()),'command prohibited by parent profile')
++    def test_open_parent_has_no_private_authority(self):
++        result=check_open_fragment(fixed_parent_sigma(),{})
++        self.assertEqual(result.verdict,'semantic-no');self.assertIn('private closed INIT',result.diagnostic['message'])
++    def test_service_missing_extra_and_wrong_fields(self):
++        for mutation in ('missing','extra','name'):
++            raw=f.source();node=f.service_node(raw)
++            if mutation=='missing':del node['tokens']
++            elif mutation=='extra':node['caller']='main'
++            else:node['name']='C'
++            with self.subTest(mutation=mutation):self.rejected(raw)
++    def test_tool_exact_dotted_name_only(self):
++        raw=f.source();f.tool_node(raw)['name']='tokenizer.other';self.rejected(raw,'fixed readonly-tool name')
++        raw=f.source();raw['main']['body']['body']['name']='bad.binding';self.rejected(raw)
++    def test_service_requires_eight_complete_words(self):
++        for count in (1,7,9):
++            raw=f.source();f.service_node(raw)['tokens']=f.tokens_value(tuple(range(count)))
++            with self.subTest(count=count):self.rejected(raw,'Tokens8')
++        raw=f.source();f.service_node(raw)['tokens']=f.v('nat',literal=8);self.rejected(raw,'Tokens8')
++    def test_service_scope_type(self):
++        raw=f.source();f.service_node(raw)['scope']=f.word(1);self.rejected(raw,'plain Scope')
++    def test_tool_word_argument(self):
++        for value in (f.v('unit'),f.v('nat',literal=1),f.v('pair',left=f.word(1),right=f.word(2))):
++            raw=f.source();f.tool_node(raw)['argument']=value;self.rejected(raw,'argument must be Word')
++    def test_missing_service_effect(self):
++        raw=f.source();f.declared_atoms(raw)[:]=[x for x in f.declared_atoms(raw) if x['atom']!='HostService'];self.rejected(raw,'effect upper bound')
++    def test_missing_tool_effect(self):
++        raw=f.source();f.declared_atoms(raw)[:]=[x for x in f.declared_atoms(raw) if x['atom']!='LocalRead'];self.rejected(raw,'effect upper bound')
++    def test_try_does_not_absorb_local_read(self):
++        raw=f.source();slot=raw['main']['body']['body']['next']['next']
++        zero=f.v('pair',left=f.v('nat',literal=0),right=f.tokens_value((0,0,0,0)))
++        slot['first']=f.c('try',body=slot['first'],failure_name='failure',handler=f.ret(zero))
++        self.accepted(raw)
++        f.declared_atoms(raw)[:]=[x for x in f.declared_atoms(raw) if x['atom']!='LocalRead']
++        self.rejected(raw,'effect upper bound')
++    def test_effect_literal_not_nominal(self):
++        for tag,key,value in [('HostService','service','C'),('LocalRead','capability','other_file')]:
++            raw=f.source();next(a for a in f.declared_atoms(raw) if a['atom']==tag)[key]=value;self.rejected(raw,'unknown')
++    def test_no_explicit_plain_scope_authority(self):
++        raw={'schema':'p8-runtime-closed-source-v0.1','main':{'result':f.tool_info_type(),'effect':f.eff(f.atom('LocalRead',capability='tokenizer_vocab_v1'),f.atom('Raise')),'body':f.tool(f.word(1))}}
++        self.rejected(raw,'current plain scope')
++    def test_private_main_not_symbolic_lambda(self):
++        fn=f.v('lambda',mode='U',captures=[],foot={'support':'all','items':[]},projections={'selectors':[],'entries':[]},requires={'requires':'true'},links=[],
++               effect=f.eff(f.atom('LocalRead',capability='tokenizer_vocab_v1'),f.atom('Raise')),
++               parameter={'name':'arg','type':f.t('Word')},result=f.tool_info_type(),body=f.tool(f.var('arg')))
++        raw=f.in_scope(f.c('let_e',name='fn',expression={'expression':'value','value':fn},next=f.ret()),f.eff())
++        self.rejected(raw,'original INIT main')
++    def test_foreign_outer_scope_rejected(self):
++        inner=f.in_scope(f.service(scope='outer',tokens=f.tokens_value()),f.eff(f.atom('HostService',scope='InnerS',service='B'),f.atom('Raise')),f.t('Word'),prefix='Inner',name='inner')
++        raw=f.in_scope(inner['main']['body'],inner['main']['effect'],f.t('Word'),name='outer')
++        self.rejected(raw,'current innermost scope')
++    def test_declared_result_type_exact(self):
++        raw=f.source();raw['main']['result']=f.t('Unit');self.rejected(raw,'type')
++
++
++if __name__=='__main__':unittest.main()
+--- baseline-source/Sources/RuntimeCore/Program.swift
++++ runtime/Sources/RuntimeCore/Program.swift
+@@ -217,6 +217,11 @@
+ 
+ package struct CheckedProgram: Sendable {
+     let source: JSONValue; let sourceBytes: Data; let sourceHash: String; let rawHash: String
++    package let executionDomain: CheckedExecutionDomain
++    let responseHash: String
++    package var sourceBytesSHA256: String { rawHash }
++    package var canonicalSourceSHA256: String { sourceHash }
++    package var compilerResponseSHA256: String { responseHash }
+     let table: StaticTable; let annotations: [String:Annotation]; let nodes: [String:JSONValue]
+     let nominalEnvironments: [String:[String:NominalID]]
+     let entryType: JSONValue; let entryEffect: JSONValue
+@@ -322,7 +327,14 @@
+     try demand(try result.field("diagnostic") == .null,"ready diagnostic")
+     let program = try result.field("program")
+     _ = try program.members(exactly:["schema","profile","source","sigma","static_values","sites","entry"])
+-    try demand(try program.field("schema").text() == "p8-runtime-checked-program-v1" && program.field("profile").text() == "src1-response-offer-owner1-v1","program version")
++    try demand(try program.field("schema").text() == "p8-runtime-checked-program-v1","program version")
++    let profile=try program.field("profile").text()
++    let domain:CheckedExecutionDomain
++    switch profile {
++    case "src1-response-offer-owner1-v1":domain = .mlxLeaf
++    case "src1b-parent-host-close-v1":domain = .hostParent
++    default:throw ProtocolError("program version")
++    }
+     let sourceRecord = try program.field("source"); _ = try sourceRecord.members(exactly:["utf8_base64","bytes_sha256","canonical_sha256"])
+     let rawHash = digest(source)
+     try demand(try Data(base64Encoded:sourceRecord.field("utf8_base64").text()) == source && sourceRecord.field("bytes_sha256").text() == rawHash,"exact source bytes")
+@@ -332,7 +344,8 @@
+     _ = try ast.members(exactly:["schema","main"])
+     try demand(try ast.field("schema").text() == "p8-runtime-closed-source-v0.1","closed source only")
+     _ = try ast.field("main").members(exactly:["result","effect","body"])
+-    let sigma = try program.field("sigma"); _ = try sigma.members(exactly:["id","abi","operations","backend_contract","host_input_contract","host_response_contract"])
++    let sigma = try program.field("sigma")
++    _ = try sigma.members(exactly:domain == .mlxLeaf ? ["id","abi","operations","backend_contract","host_input_contract","host_response_contract"] : ["id","abi","operations","host_parent_contract","host_service_contract","tool_contract"])
+     let expectedSigma:JSONValue = .object(["id":.string("p8-src1-fixed-sigma-v1"),"abi":.string("p8-src1-runtime-sigma-abi-v1"),"backend_contract":cm1BackendContract,"host_input_contract":.object([
+         "id":.string("p8-ebd1-external-request-v1"),"port":.string("B"),"command":.string("receive_request"),
+         "result_type":.string("Tokens8"),"caller":.string("init-main-job-only"),
+@@ -346,26 +359,30 @@
+         .object(["name":.string("body_error"),"kind":.string("pure"),"implementation":.string("body-error-unit-v1")]),
+         .object(["name":.string("B"),"kind":.string("host-input"),"implementation":.string("ebd1-receive-request-tokens8-v1")]),
+         .object(["name":.string("B.response"),"kind":.string("host-response"),"implementation":.string("src1-offer-response-word-v1")])])])
+-    try demand(sigma == expectedSigma,"fixed Sigma implementations")
++    try demand(sigma == (domain == .mlxLeaf ? expectedSigma : parentSigma),"fixed Sigma implementations")
++    try validateProfileDeclarations(ast,domain:domain)
+     let table = try StaticTable(program.field("static_values")); let decoder = ProgramDecoder(hash:hash,table:table)
+     let rawSites = try program.field("sites").elements(); try demand(rawSites.count <= 8192,"site limit")
+     let siteRows = try rawSites.map(decoder.annotation)
+     try demand(Set(siteRows.map(\.path)).count == siteRows.count,"duplicate source site")
+     let annotations = Dictionary(uniqueKeysWithValues:siteRows.map { ($0.path,$0) })
+     var nodes:[String:JSONValue] = [:]; var order:[String] = []; var names:[String:[String:NominalID]] = [:]
+-    try walkSource(try ast.field("main").field("body"),family:"command",path:"/main/body",nominals:[:],annotations:annotations,nodes:&nodes,order:&order,names:&names)
++    var parentScopes:[String:NominalID] = [:]
++    try walkSource(try ast.field("main").field("body"),family:"command",path:"/main/body",nominals:[:],annotations:annotations,domain:domain,privateMain:true,currentScope:nil,parentScopes:&parentScopes,nodes:&nodes,order:&order,names:&names)
+     try demand(order == siteRows.map(\.path),"exact source occurrence order")
+     try checkBindings(siteRows,nodes:nodes,decoder:decoder)
++    try checkParentBindings(siteRows,nodes:nodes,scopes:parentScopes,decoder:decoder)
+     let entry = try program.field("entry"); _ = try entry.members(exactly:["site","result_type","effect"])
+     try demand(try decoder.site(entry.field("site")) == "/main/body","entry source site")
+     let type = try entry.field("result_type"); let effect = try entry.field("effect"); try table.reference(type); try table.reference(effect)
+     try demand(annotations["/main/body"]?.type == type && annotations["/main/body"]?.effect == effect,"entry annotation correspondence")
+-    return CheckedProgram(source:ast,sourceBytes:source,sourceHash:hash,rawHash:rawHash,table:table,annotations:annotations,nodes:nodes,nominalEnvironments:names,entryType:type,entryEffect:effect)
++    return CheckedProgram(source:ast,sourceBytes:source,sourceHash:hash,rawHash:rawHash,executionDomain:domain,responseHash:digest(response),table:table,annotations:annotations,nodes:nodes,nominalEnvironments:names,entryType:type,entryEffect:effect)
+ }
+ 
+ /// Trusted entry configuration is checked before creating worker or request Tasks.
+ /// Native protocol fixtures may exercise rejects through the internal execute API.
+ package func validateExternalDemandConfiguration(_ program:CheckedProgram,configured:Bool)throws {
++    try demand(program.executionDomain == .mlxLeaf,"external demand requires mlxLeaf domain")
+     let receives=program.annotations.values.filter{$0.kind == "command:receive_request" && $0.execution == "reachable"}
+     try demand(receives.count == (configured ? 1:0),"external request configuration/checked source receive count")
+     // An occurrence check only: neither a count nor a may-effect proves that
+@@ -375,11 +392,21 @@
+ }
+ 
+ private func walkSource(_ raw: JSONValue, family: String, path: String, nominals: [String:NominalID], annotations: [String:Annotation],
++                        domain:CheckedExecutionDomain,privateMain:Bool,currentScope:NominalID?,parentScopes:inout [String:NominalID],
+                         nodes: inout [String:JSONValue], order: inout [String], names: inout [String:[String:NominalID]]) throws {
+     let tag = try raw.field(family).text()
+     guard let a = annotations[path] else { throw ProtocolError("missing AST annotation") }
+     try demand(a.kind == family+":"+tag,"AST/annotation kind")
+     nodes[path]=raw; order.append(path); names[path]=nominals
++    if family == "command" {
++        if domain == .hostParent { try demand(!parentForbidden.contains(tag),"command prohibited by parent profile") }
++        if tag == "call_service" || tag == "call_tool" {
++            try demand(domain == .hostParent,"parent command prohibited by child profile")
++            try demand(privateMain,"parent command requires original INIT main Job")
++            guard let currentScope else {throw ProtocolError("parent command requires current plain scope")}
++            parentScopes[path]=currentScope
++        }
++    }
+     var fields:[String]=[]; var children:[(String,String)] = []; var bodyNominals = nominals
+     switch (family,tag) {
+     case ("value","unit"): break
+@@ -423,6 +450,12 @@
+     case ("command","offer_response"):
+         fields=["name","owner","token"]; children=[("owner","value"),("token","value")]
+         try demand(try raw.field("name").text() == "B","fixed host-response port")
++    case ("command","call_service"):
++        fields=["name","scope","tokens"]; children=[("scope","value"),("tokens","value")]
++        try demand(try raw.field("name").text() == "B","fixed host-service name")
++    case ("command","call_tool"):
++        fields=["name","argument"]; children=[("argument","value")]
++        try demand(try raw.field("name").text() == "tokenizer.vocab_symbol","fixed readonly-tool name")
+     case ("command","await"),("command","await_cancel"): fields=["shared"]; children=[("shared","value")]
+     case ("command","new_owner"):
+         fields=["value","names","name","body"]; children=[("value","value"),("body","command")]
+@@ -485,7 +518,14 @@
+             if case .array(let xs)=child, let i=Int(component) { child=xs[i] } else { child=try child.field(component) }
+         }
+         let insideGeneration = key == "body" || key == "cleanup/body" || key == "job/body" || (["produce","fork"].contains(tag) && key == "next")
+-        try walkSource(child,family:childFamily,path:childPath,nominals:insideGeneration ? bodyNominals : nominals,annotations:annotations,nodes:&nodes,order:&order,names:&names)
++        let childPrivate=privateMain && !(family == "value" && tag == "lambda" && key == "body") && key != "job/body" && key != "cleanup/body"
++        var childScope=currentScope
++        if family == "command" && tag == "scope" && key == "body" {
++            guard let scope=a.generation?.names.first(where:{$0.sort == "Scope"}) else {throw ProtocolError("parent plain scope nominal")}
++            childScope=scope
++        }
++        try walkSource(child,family:childFamily,path:childPath,nominals:insideGeneration ? bodyNominals : nominals,annotations:annotations,
++                       domain:domain,privateMain:childPrivate,currentScope:childScope,parentScopes:&parentScopes,nodes:&nodes,order:&order,names:&names)
+     }
+ }
+ 
+@@ -720,3 +760,129 @@
+         }
+     }
+ }
++
++
++private let parentSigma:JSONValue = .object(["id":.string("p8-src1b-parent-fixed-sigma-v1"),"abi":.string("p8-src1b-parent-runtime-sigma-abi-v1"),"operations":.array([.object(["name":.string("body_error"),"kind":.string("pure"),"implementation":.string("body-error-unit-v1")]),.object(["name":.string("B"),"kind":.string("host-service"),"implementation":.string("src1b-leaf-response-host-close-v1")]),.object(["name":.string("tokenizer.vocab_symbol"),"kind":.string("readonly-tool"),"implementation":.string("src1b-vocab-symbol-utf8-sha256-v1")])]),"host_parent_contract":.object(["id":.string("src1b-host-parent-v1"),"execution_domain":.string("hostParent"),"direct_backend":.string("none"),"caller":.string("init-main-job-only"),"scope_kind":.string("plain"),"service_instances":.number("1"),"scope_exit":.string("actual-host-close-before-parent-publication-v1"),"registry":.string("fixed-leaf-no-parent-callback-v1")]),"host_service_contract":.object(["id":.string("src1b-response-and-host-close-v1"),"name":.string("B"),"command":.string("call_service"),"argument_type":.string("Tokens8"),"result_type":.string("Word"),"child_profile":.string("src1-response-offer-owner1-v1"),"delivery":.string("after-source-join"),"response":.string("original-commit-requester-delivered-once-v1"),"responsibility":.string("parent-scope-HostClose-v1"),"submission":.string("reserve-gated-commit-start-v1")]),"tool_contract":.object(["id":.string("src1b-tokenizer-vocab-symbol-v1"),"name":.string("tokenizer.vocab_symbol"),"command":.string("call_tool"),"capability":.string("tokenizer_vocab_v1"),"argument_type":.string("Word"),"result_type":.string("ToolInfo-v1"),"representation":.string("bpe-vocab-symbol-utf8-v1"),"authority_sha256":.string("aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),"max_file_bytes":.number("12582912"),"work_budget_ns":.number("2000000000"),"added_token_policy":.string("error-unsupported"),"missing_token_policy":.string("error-missing"),"effect":.string("readonly-file-io-plus-raise-v1")])])
++
++private let parentForbidden:Set<String> = ["new_owner","run","produce","fork","receive_request","offer_response","await","await_cancel","request_cancel","load"]
++
++private func validateProfileDeclarations(_ ast:JSONValue,domain:CheckedExecutionDomain)throws {
++    var pending=[ast]
++    while let item=pending.popLast() {
++        switch item {
++        case .object(let fields):
++            if domain == .mlxLeaf,let atom=fields["atom"],case .string(let name)=atom {
++                try demand(!["HostService","LocalRead"].contains(name),"parent effect prohibited by child profile")
++            }
++            pending.append(contentsOf:fields.values)
++        case .array(let values):pending.append(contentsOf:values)
++        default:break
++        }
++    }
++}
++
++/// Occurrence/profile gate only. Ledger realizes caller, admission, once and
++/// response-consumed obligations; the fixed frontend supplies static proof.
++package func validateParentServiceConfiguration(_ program:CheckedProgram)throws {
++    try demand(program.executionDomain == .hostParent,"parent configuration requires hostParent domain")
++    let commands=program.annotations.values.filter{$0.kind.hasPrefix("command:")}
++    try demand(commands.filter{$0.kind == "command:call_service"}.count == 1,"parent service configuration requires one call_service occurrence")
++    try demand(commands.filter{$0.kind == "command:call_tool"}.count == 1,"parent service configuration requires one call_tool occurrence")
++    try demand(!commands.contains{parentForbidden.contains(String($0.kind.dropFirst(8)))},"command prohibited by parent profile")
++}
++
++/// Narrow correspondence for the two new command interfaces. This checks
++/// resolved DAGs and source binding identities, not arbitrary whole-program proofs.
++private func checkParentBindings(_ rows:[Annotation],nodes:[String:JSONValue],scopes:[String:NominalID],decoder:ProgramDecoder)throws {
++    let table=decoder.table
++    let indexed=Dictionary(uniqueKeysWithValues:rows.map{($0.path,$0)})
++    func base(_ type:JSONValue,_ tag:String)throws {
++        try demand(try table.text(table.field(type,"family")) == "type" && table.tag(type) == tag && table.fields(type).isEmpty,"parent fieldless \(tag) contract")
++    }
++    func pair(_ type:JSONValue)throws->[String:JSONValue] {
++        try demand(try table.text(table.field(type,"family")) == "type" && table.tag(type) == "Pair","parent complete Pair contract")
++        let fields=try table.fields(type)
++        try demand(Set(fields.keys) == Set(["left","right"]),"parent Pair fields")
++        return fields
++    }
++    func words(_ type:JSONValue,_ count:Int)throws {
++        var current=type
++        for _ in 1..<count {let fields=try pair(current);try base(fields["left"]!,"Word");current=fields["right"]!}
++        try base(current,"Word")
++    }
++    func nominal(_ term:JSONValue,_ expected:NominalID)throws {
++        var budget=128
++        let value=try table.smallValue(term,remaining:&budget)
++        _ = try value.members(exactly:["nominal"])
++        try demand(try decoder.nominal(value.field("nominal")) == expected,"parent current scope nominal correspondence")
++    }
++    func bindingRegion(_ owner:Annotation,_ binding:Binding)throws->String? {
++        switch owner.kind {
++        case "command:let_e","command:let_c":return owner.path+"/next"
++        case "command:scope","command:unpack":return owner.path+"/body"
++        case "command:case":return owner.path+(binding.id.index == 0 ? "/left" : "/right")
++        case "command:try":return owner.path+"/handler"
++        default:return nil
++        }
++    }
++    func operandBindings(_ root:String)throws {
++        for variable in rows where variable.kind == "value:var" && (variable.path == root || variable.path.hasPrefix(root+"/")) {
++            let name=try nodes[variable.path]!.field("name").text()
++            var candidates:[(Int,Binding)]=[]
++            for owner in rows {
++                for binding in owner.bindings where binding.name == name {
++                    if let region=try bindingRegion(owner,binding),variable.path.hasPrefix(region+"/") || variable.path == region {
++                        candidates.append((region.count,binding))
++                    }
++                }
++            }
++            candidates.sort{$0.0 > $1.0}
++            guard let nearest=candidates.first else {throw ProtocolError("parent operand has no visible lexical binding")}
++            try demand(candidates.count == 1 || candidates[1].0 < nearest.0,"parent ambiguous lexical binding")
++            try demand(variable.copy == [nearest.1.id] && variable.move.isEmpty,"parent operand exact Copy binding")
++            try demand(try table.equivalent(variable.type,nearest.1.type),"parent operand complete binding type")
++        }
++    }
++    for row in rows where row.kind == "command:call_service" || row.kind == "command:call_tool" {
++        guard let expectedScope=scopes[row.path] else {throw ProtocolError("parent command private scope context")}
++        let service=row.kind == "command:call_service"
++        let parameterPath=row.path+(service ? "/tokens" : "/argument")
++        guard let argument=indexed[parameterPath] else {throw ProtocolError("parent complete argument occurrence")}
++        if service {
++            try base(row.type,"Word");try words(argument.type,8)
++            guard let scope=indexed[row.path+"/scope"],let owner=indexed[expectedScope.site],
++                  let region=owner.generation?.names.first(where:{$0.sort == "Region"}) else {throw ProtocolError("parent complete scope occurrence")}
++            try demand(try table.text(table.field(scope.type,"family")) == "type" && table.tag(scope.type) == "Scope","parent Scope type")
++            let fields=try table.fields(scope.type)
++            try demand(Set(fields.keys) == Set(["scope","region","kind"]),"parent complete Scope fields")
++            try demand(try table.text(fields["kind"]!) == "plain","parent plain Scope kind")
++            try nominal(fields["scope"]!,expectedScope);try nominal(fields["region"]!,region)
++            try operandBindings(row.path+"/scope")
++        } else {
++            try base(argument.type,"Word")
++            let fields=try pair(row.type);try base(fields["left"]!,"Nat");try words(fields["right"]!,4)
++        }
++        try operandBindings(parameterPath)
++        try demand(try table.text(table.field(row.effect,"family")) == "effect" && table.tag(row.effect) == "set","parent exact effect set")
++        let fields=try table.fields(row.effect)
++        try demand(Set(fields.keys) == Set(["atoms"]),"parent exact effect fields")
++        let atoms=try table.resolve(fields["atoms"]!).field("array").elements()
++        try demand(atoms.count == 2,"parent exact effect arity")
++        let effectName=service ? "HostService" : "LocalRead"
++        let operations=try atoms.filter{try table.tag($0) == effectName},raises=try atoms.filter{try table.tag($0) == "Raise"}
++        try demand(operations.count == 1 && raises.count == 1,"parent operation and Raise effects")
++        for atom in atoms {try demand(try table.text(table.field(atom,"family")) == "atom","parent effect atom family")}
++        try demand(try table.fields(raises[0]).isEmpty,"parent fieldless Raise")
++        let operation=try table.fields(operations[0])
++        if service {
++            try demand(Set(operation.keys) == Set(["scope","service"]),"parent HostService exact fields")
++            try demand(try table.text(operation["service"]!) == "B","parent HostService fixed literal")
++            try nominal(operation["scope"]!,expectedScope)
++        } else {
++            try demand(Set(operation.keys) == Set(["capability"]),"parent LocalRead exact fields")
++            try demand(try table.text(operation["capability"]!) == "tokenizer_vocab_v1","parent LocalRead fixed literal")
++        }
++        try demand(row.copy.isEmpty && row.move.isEmpty && row.bindings.isEmpty && row.captures.isEmpty && row.frame == nil && row.generation == nil,
++                   "parent command exact direct usage/frame")
++    }
++}

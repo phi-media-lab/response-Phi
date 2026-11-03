@@ -1,0 +1,352 @@
+{
+  "schema": "src1b-parent-frontend-program-origin-v1",
+  "at_utc": "2026-11-01T02:16:21.858948+00:00",
+  "author": "/root/src1_decoder_review",
+  "scope": "Only this B runtime/frontend and RuntimeCore/Program.swift. Source-only first implementation pending independent review; no candidate, builder, compiler or tests executed.",
+  "authority": [
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/PLAN.md",
+      "bytes": 11564,
+      "sha256": "308948a1180696f9874f58d966daca8fa6822ddd1c9755c5e8fa844cafcc24a4"
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/INTERFACE-v1.md",
+      "bytes": 28972,
+      "sha256": "ff03918accdf062ea25c7d9ebd341eaa88cceef6ab36ce59485637c3c667d07f"
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/CORE-API-ADDENDUM-v1.md",
+      "bytes": 15975,
+      "sha256": "5925ea24439b8f662db99d676e3553c5f5b8f30e7b4ac2fea608a2b4e24595ed"
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/review/FORMAL-DESIGN-ROOT-ADOPTION-v1.json",
+      "bytes": 8031,
+      "sha256": "f96a289b63b3a226dc56714b7ce6ff7f11a063b876a460cc8259bdaa6a78f3fe"
+    }
+  ],
+  "baseline_manifest": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-manifest.json",
+    "bytes": 101340,
+    "sha256": "a298cfd8076464b77f763e73c6e1fbad5c537846af0c57a3f375c52bad1288bc"
+  },
+  "changed_or_added_files": [
+    {
+      "relative_path": "frontend/export_parent.py",
+      "before": null,
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/export_parent.py",
+        "bytes": 940,
+        "sha256": "28b67fc423ffdaba9cebb36071d8e496f4558507e1658ec3ec5528d37153779b"
+      }
+    },
+    {
+      "relative_path": "frontend/p8closure/schema.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8closure/schema.py",
+        "bytes": 26718,
+        "sha256": "bed9c065a82a3b9ffa2f633c26def55fe764bd61e3e78caf1552678e3fa875e1"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8closure/schema.py",
+        "bytes": 26759,
+        "sha256": "ca83e80d33f7ae5db51fa6e8b000d28b071dcdcc20fecd7e3d0a777d36f61687"
+      }
+    },
+    {
+      "relative_path": "frontend/p8foundation/resolve.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8foundation/resolve.py",
+        "bytes": 12736,
+        "sha256": "179955dbd740d57fb7e730e28582276f84daa42e8166d8884be454d6e0c9fb34"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8foundation/resolve.py",
+        "bytes": 12977,
+        "sha256": "f2d6748f3341a508cfb684ee6140452f7ad1662c6bf353df61d50d1de7e88ae5"
+      }
+    },
+    {
+      "relative_path": "frontend/p8source/body.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8source/body.py",
+        "bytes": 58910,
+        "sha256": "e13a3a111381d2495730aa1c5b68f3d94d53bb6c4adda841c00a19d7321cfab3"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8source/body.py",
+        "bytes": 62097,
+        "sha256": "cec74f4e90e190018b8d2790bccbd2d3eea8f5fa74d3d8bc3451fb4b20eda106"
+      }
+    },
+    {
+      "relative_path": "frontend/p8source/entry.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8source/entry.py",
+        "bytes": 8519,
+        "sha256": "16d52a0313b07809c49f4602b3c237a5cf4963f1771f160117f91d718495b0c3"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8source/entry.py",
+        "bytes": 8710,
+        "sha256": "0a085c350bf695b2528e7a5672d29714dda7509657fa9cef6377f5675a6230c3"
+      }
+    },
+    {
+      "relative_path": "frontend/p8source/execution.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8source/execution.py",
+        "bytes": 15856,
+        "sha256": "51a38d6bfc34655d894b90bd2c2470cc85ff7de57ee51f8e6992cc0e5927b63a"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8source/execution.py",
+        "bytes": 15879,
+        "sha256": "26bdd6da3c6fc59082385d4c7ff493913d4ea2f30eab44dc5080ca2511355828"
+      }
+    },
+    {
+      "relative_path": "frontend/p8source/inference.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8source/inference.py",
+        "bytes": 26874,
+        "sha256": "da5004cb34711fb30a1348d1ab6f22f2e6a421c78a23c5daa9f589c54a6e960b"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8source/inference.py",
+        "bytes": 28061,
+        "sha256": "f0401ebd3513450e79fcdab17edb504f016bf6ff93895910f850dec767d073a5"
+      }
+    },
+    {
+      "relative_path": "frontend/p8source/sigma.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8source/sigma.py",
+        "bytes": 4327,
+        "sha256": "c688c35ae79147ae9cd8f2868b58269247372e801c8adaa3c259a6a45364880a"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8source/sigma.py",
+        "bytes": 8736,
+        "sha256": "42326a431facd00f9d4f15ea0792e5d7804446135ca216dd66ddf550538da526"
+      }
+    },
+    {
+      "relative_path": "frontend/p8source/source_schema.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8source/source_schema.py",
+        "bytes": 8156,
+        "sha256": "1923bb85204841349077630a0d605d9e25e8ec22e398ba122f00c6ff750a139f"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8source/source_schema.py",
+        "bytes": 8531,
+        "sha256": "6c3f75dc087f10fb3c07b86f2917e65edb968d9dd335bac8a8e3ebc01be5b8b4"
+      }
+    },
+    {
+      "relative_path": "frontend/p8static/parser.py",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/frontend/p8static/parser.py",
+        "bytes": 10663,
+        "sha256": "435216c123fa67a45987e7db953de747eaa77c462139433acc5db6aa7e926486"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/p8static/parser.py",
+        "bytes": 11019,
+        "sha256": "b856cb74312febc93db4332b808deb161446b15f19c218cd4ce7a0f7c9cd6957"
+      }
+    },
+    {
+      "relative_path": "frontend/parent_decoder_mutations.py",
+      "before": null,
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/parent_decoder_mutations.py",
+        "bytes": 6550,
+        "sha256": "81ee1bf6ba8261cff788b68a0565d3906afa0303c54262ab7a6c8657c966c892"
+      }
+    },
+    {
+      "relative_path": "frontend/parent_fixture.py",
+      "before": null,
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/parent_fixture.py",
+        "bytes": 2869,
+        "sha256": "7003a59b29f8ee326181ee8eacd3b0212330522b453deade87947c63481436b8"
+      }
+    },
+    {
+      "relative_path": "frontend/test_parent_host.py",
+      "before": null,
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/test_parent_host.py",
+        "bytes": 10351,
+        "sha256": "d9cc0c1b92504b6b18388b96fcb0175e35a8eca16d23967978f9f10dd31a6b04"
+      }
+    },
+    {
+      "relative_path": "Sources/RuntimeCore/Program.swift",
+      "before": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/baseline-source/Sources/RuntimeCore/Program.swift",
+        "bytes": 51129,
+        "sha256": "404f725c0a5b25d541ff07dc138cc1cd43120bd4bd9128eaeb5fb36228ca46b0"
+      },
+      "current": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/Sources/RuntimeCore/Program.swift",
+        "bytes": 63836,
+        "sha256": "e7b982727e272bf34bece17c8554427a3ba6adfb51bf57ac6be0772272ff90c9"
+      }
+    }
+  ],
+  "exact_diff": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/src1b-exact.diff",
+    "bytes": 61690,
+    "sha256": "e6543c7cc855eeb61f053ee9f54c4a898d85844f6c868490634e3aba475ef806"
+  },
+  "author_metadata_count_failure": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/src1b-author-count-note-v1.json",
+    "bytes": 652,
+    "sha256": "dbee93a26d1c9d45c7fdda9aee040f25a3b4604bbf7b79ac2eb92b94cb86623e"
+  },
+  "interface": {
+    "parent_exporter": "frontend/export_parent.py",
+    "child_exporter": "frontend/export.py (original bytes unchanged)",
+    "parent_profile": "src1b-parent-host-close-v1",
+    "child_profile": "src1-response-offer-owner1-v1",
+    "program_getters": [
+      "executionDomain",
+      "sourceBytesSHA256",
+      "canonicalSourceSHA256",
+      "compilerResponseSHA256"
+    ],
+    "shared_domain_enum": "Defined by Core owner in HostComposition.swift, not duplicated here",
+    "parent_preflight": "validateParentServiceConfiguration: hostParent, exact one service/tool occurrence, no prohibited command. No dynamic reachability or closure proof claim."
+  },
+  "source_checks": {
+    "AST_parsed_as_data": true,
+    "candidate_imported": false,
+    "candidate_executed": false,
+    "compiler_executed": false,
+    "tests_executed": false,
+    "builder_invoked": false,
+    "decoder_mutations_constructed": false,
+    "parent_sigma_literal_matches_exact_interface": true,
+    "fixture_B8_literal_matches_original_request": true
+  },
+  "fixture_input_origin": {
+    "path": "/Users/fbsh/response-lab/results/source-response-contract-src1/gpu-inputs-first-v1/requests/U.json",
+    "bytes": 181,
+    "sha256": "e0be0cec1388e75a1da0e65a0e6c28cb5edff6235e57fd778452bbcc88853de3"
+  },
+  "fixture_input_scope": "Eight original B input words only; no literal is asserted to be a new service output/receipt.",
+  "new_test_methods": [
+    "test_complete_parent_profile_and_result",
+    "test_exact_two_command_exports",
+    "test_child_rejects_parent_commands",
+    "test_child_rejects_declaration_only_parent_effect",
+    "test_child_original_empty_source_unchanged",
+    "test_parent_rejects_existing_backend_commands",
+    "test_open_parent_has_no_private_authority",
+    "test_service_missing_extra_and_wrong_fields",
+    "test_tool_exact_dotted_name_only",
+    "test_service_requires_eight_complete_words",
+    "test_service_scope_type",
+    "test_tool_word_argument",
+    "test_missing_service_effect",
+    "test_missing_tool_effect",
+    "test_try_does_not_absorb_local_read",
+    "test_effect_literal_not_nominal",
+    "test_no_explicit_plain_scope_authority",
+    "test_private_main_not_symbolic_lambda",
+    "test_foreign_outer_scope_rejected",
+    "test_declared_result_type_exact"
+  ],
+  "new_test_method_count": 20,
+  "decoder_mutation_oracle": [
+    {
+      "id": "unknown-profile",
+      "expected_message": "program version"
+    },
+    {
+      "id": "wrong-sigma-id",
+      "expected_message": "fixed Sigma implementations"
+    },
+    {
+      "id": "source-bytes-hash",
+      "expected_message": "exact source bytes"
+    },
+    {
+      "id": "service-result-unit",
+      "expected_message": "parent fieldless Word contract"
+    },
+    {
+      "id": "service-tokens-seven",
+      "expected_message": "parent complete Pair contract"
+    },
+    {
+      "id": "tool-argument-nat",
+      "expected_message": "parent fieldless Word contract"
+    },
+    {
+      "id": "tool-result-word-length",
+      "expected_message": "parent fieldless Nat contract"
+    },
+    {
+      "id": "scope-kind",
+      "expected_message": "parent plain Scope kind"
+    },
+    {
+      "id": "scope-identity",
+      "expected_message": "parent current scope nominal correspondence"
+    },
+    {
+      "id": "service-effect-literal",
+      "expected_message": "parent HostService fixed literal"
+    },
+    {
+      "id": "service-effect-scope",
+      "expected_message": "parent current scope nominal correspondence"
+    },
+    {
+      "id": "tool-capability",
+      "expected_message": "parent LocalRead fixed literal"
+    },
+    {
+      "id": "missing-raise",
+      "expected_message": "parent exact effect arity"
+    },
+    {
+      "id": "extra-effect",
+      "expected_message": "parent exact effect arity"
+    },
+    {
+      "id": "command-direct-copy",
+      "expected_message": "parent command exact direct usage/frame"
+    }
+  ],
+  "preserved": [
+    "Original child registry/profile/export entry and effect semantics; new parent atoms are expressly rejected in child declarations.",
+    "Original source schema versions, source identities and DAG format, static proof assumptions, ordinary values/calls/try/scope semantics.",
+    "Existing producer/FORK/await/offer code paths and original nominal generation/WaitContinuation; only new command rules added.",
+    "Original token domain/closure/once/actual response obligations remain dynamic Core responsibilities."
+  ],
+  "runtime_dependencies": [
+    "CheckedExecutionDomain.hostParent/mlxLeaf from shared Core owner.",
+    "Core must call matching configuration gate before actual parent/child creation and enforce private caller, current Open scope, once and response-consumed guards.",
+    "Host must invoke fixed exporter for the chosen domain and bind actual source/stdout/exit; metadata hashes identify raw bytes but do not authorize execution by themselves."
+  ],
+  "remaining_before_execution": [
+    "Independent source review of this exact change set.",
+    "Reviewed finite wrappers/actual-input construction and Swift decoder harness must bind the15 mutation cases against an independently frozen fixed oracle; constructor expectation strings alone are not acceptance.",
+    "Whole shared runtime source review, frozen build command and first actual compiler success.",
+    "First actual frontend run of the20 methods, original child regression gates and complete parent/decoder/CPU fixtures; no pass is claimed here."
+  ],
+  "not_claimed": [
+    "B implemented end-to-end",
+    "Any source/decoder test passed",
+    "Actual Tokens8 request, B delivery, tool result or HostClose observed",
+    "Permission expansion from effect declarations",
+    "Complete type soundness or general effect-system proof"
+  ],
+  "self_pin": "Excluded to avoid self reference; final root source manifest must pin this file."
+}

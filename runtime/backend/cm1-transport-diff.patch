@@ -1,0 +1,1453 @@
+--- /Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/Support.swift
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/MLXTransport/Support.swift
+@@ -3,10 +3,11 @@
+ import Dispatch
+ import CryptoKit
+ import Darwin
+-
+-// JSON carries the original worker evidence without reducing it to pass/fail.
+-indirect enum JSON: Codable, Sendable, Equatable {
+-    case object([String: JSON]), array([JSON]), string(String), int(Int64), real(Double), bool(Bool), null
++import RuntimeCore
++
++// WireJSON carries the original worker evidence without reducing it to pass/fail.
++indirect enum WireJSON: Codable, Sendable, Equatable {
++    case object([String: WireJSON]), array([WireJSON]), string(String), int(Int64), real(Double), bool(Bool), null
+     init(from decoder: Decoder) throws {
+         let c = try decoder.singleValueContainer()
+         if c.decodeNil() { self = .null }
+@@ -14,8 +15,8 @@
+         else if let v = try? c.decode(Int64.self) { self = .int(v) }
+         else if let v = try? c.decode(Double.self) { self = .real(v) }
+         else if let v = try? c.decode(String.self) { self = .string(v) }
+-        else if let v = try? c.decode([JSON].self) { self = .array(v) }
+-        else { self = .object(try c.decode([String: JSON].self)) }
++        else if let v = try? c.decode([WireJSON].self) { self = .array(v) }
++        else { self = .object(try c.decode([String: WireJSON].self)) }
+     }
+     func encode(to encoder: Encoder) throws {
+         var c = encoder.singleValueContainer()
+@@ -29,127 +30,157 @@
+         case .null: try c.encodeNil()
+         }
+     }
+-    subscript(_ key: String) -> JSON { if case .object(let o) = self { return o[key] ?? .null }; return .null }
++    subscript(_ key: String) -> WireJSON { if case .object(let o) = self { return o[key] ?? .null }; return .null }
+     var string: String? { if case .string(let s) = self { return s }; return nil }
+     var integer: Int? { if case .int(let n) = self { return Int(exactly: n) }; return nil }
+     var bool: Bool? { if case .bool(let b) = self { return b }; return nil }
+-    var array: [JSON]? { if case .array(let a) = self { return a }; return nil }
+-    var object: [String: JSON]? { if case .object(let o) = self { return o }; return nil }
+-    static func n(_ n: Int) -> JSON { .int(Int64(n)) }
+-    static func strings(_ xs: [String]) -> JSON { .array(xs.map(JSON.string)) }
++    var array: [WireJSON]? { if case .array(let a) = self { return a }; return nil }
++    var object: [String: WireJSON]? { if case .object(let o) = self { return o }; return nil }
++    static func n(_ n: Int) -> WireJSON { .int(Int64(n)) }
++    static func strings(_ xs: [String]) -> WireJSON { .array(xs.map(WireJSON.string)) }
+     func data() throws -> Data { let e = JSONEncoder(); e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]; return try e.encode(self) }
+-    static func parse(_ data: Data) throws -> JSON {
++    static func parse(_ data: Data) throws -> WireJSON {
+         var scanner = JSONFrameScanner(bytes: Array(data)); return try scanner.check()
+     }
+     func text() -> String { (try? String(decoding: data(), as: UTF8.self)) ?? "null" }
+-}
+-
+-struct BridgeFault: Error, Sendable, Equatable, CustomStringConvertible {
++    var core: JSONValue {
++        switch self {
++        case .object(let fields): .object(fields.mapValues(\.core))
++        case .array(let values): .array(values.map(\.core))
++        case .string(let value): .string(value)
++        case .int(let value): .number(String(value))
++        case .real(let value): .number(String(value))
++        case .bool(let value): .bool(value)
++        case .null: .null
++        }
++    }
++    static func fromCore(_ value: JSONValue) throws -> WireJSON { try parse(value.encoded()) }
++}
++
++struct TransportFault: Error, Sendable, Equatable, CustomStringConvertible {
+     let id: String
+     let code: String
+     let detail: String
+     init(_ code: String, _ detail: String, id: String = UUID().uuidString) { self.id = id; self.code = code; self.detail = detail }
+     var description: String { "\(code)[\(id)]: \(detail)" }
+-    var json: JSON { .object(["id": .string(id), "code": .string(code), "detail": .string(detail)]) }
++    var json: WireJSON { .object(["id": .string(id), "code": .string(code), "detail": .string(detail)]) }
+ }
+ func require(_ condition: @autoclosure () -> Bool, _ message: String) throws {
+-    if !condition() { throw BridgeFault("invariant", message) }
+-}
+-func digest(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
++    if !condition() { throw TransportFault("invariant", message) }
++}
++func transportDigest(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+ 
+ // Timers never cancel a producer or manufacture a receipt. A timeout resolves
+ // only the waiting promise; Session separately quarantines its retained roots.
+-final class Promise<T: Sendable>: Sendable {
+-    private struct State { var claimed = false; var result: Result<T, BridgeFault>?; var continuations: [CheckedContinuation<T, any Error>] = [] }
++final class TransportPromise<T: Sendable>: Sendable {
++    private struct State { var claimed = false; var result: Result<T, TransportFault>?; var continuations: [CheckedContinuation<T, any Error>] = [] }
+     private let state = Mutex(State())
+-    @discardableResult func resolve(_ result: Result<T, BridgeFault>, beforeResume: (@Sendable () -> Void)? = nil) -> Bool {
+-        let won = state.withLock { s in
+-            guard !s.claimed else { return false }; s.claimed = true; return true
+-        }
+-        guard won else { return false }
++    func reserve() -> Bool { state.withLock { s in
++        guard !s.claimed else { return false }; s.claimed = true; return true
++    } }
++    func publishReserved(_ result: Result<T, TransportFault>) {
++        let cs = state.withLock { s in
++            precondition(s.claimed)
++            guard case .none = s.result else { preconditionFailure("reserved promise published twice") }
++            s.result = result; let cs = s.continuations; s.continuations.removeAll(); return cs
++        }
++        for c in cs { switch result { case .success(let v): c.resume(returning: v); case .failure(let e): c.resume(throwing: e) } }
++    }
++    @discardableResult func resolve(_ result: Result<T, TransportFault>, beforeResume: (@Sendable () -> Void)? = nil) -> Bool {
++        guard reserve() else { return false }
+         // Reservation is private: a new wait still registers until quarantine
+         // has finished. Recursive fail.resolve loses without locking callbacks.
+         beforeResume?()
+-        let cs = state.withLock { s in
+-            s.result = result; let cs = s.continuations; s.continuations.removeAll(); return cs
+-        }
+-        for c in cs { switch result { case .success(let v): c.resume(returning: v); case .failure(let e): c.resume(throwing: e) } }
++        publishReserved(result)
+         return true
+     }
+     func wait() async throws -> T {
+         try await withCheckedThrowingContinuation { c in
+-            let result = state.withLock { s -> Result<T, BridgeFault>? in
++            let result = state.withLock { s -> Result<T, TransportFault>? in
+                 if let result = s.result { return result }; s.continuations.append(c); return nil
+             }
+             if let result { switch result { case .success(let v): c.resume(returning: v); case .failure(let e): c.resume(throwing: e) } }
+         }
+     }
+-    func deadline(_ seconds: Double, _ fault: BridgeFault, onTimeout: (@Sendable (BridgeFault) -> Void)? = nil) {
++    func deadline(_ seconds: Double, _ fault: TransportFault, onTimeout: (@Sendable (TransportFault) -> Void)? = nil) {
+         DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { [self] in
+             resolve(.failure(fault), beforeResume: { onTimeout?(fault) })
+         }
+     }
+ }
+-final class Signal: Sendable {
+-    private let promise = Promise<Bool>()
+-    func open() { promise.resolve(.success(true)) }
+-    func wait(seconds: Double = 30, label: String = "signal") async throws {
+-        promise.deadline(seconds, BridgeFault("deadline", label)); _ = try await promise.wait()
+-    }
+-}
+-
+ // One stream writer preserves Swift event order. It is independent of all
+ // producer Tasks and of the worker stdout reader; flush() is a real queue fence.
+-final class Trace: Sendable {
+-    private struct State { var seq = 0; var events: [JSON] = [] }
++final class TransportTrace: Sendable {
++    private struct State { var seq = 0; var events: [WireJSON] = [] }
+     private let state = Mutex(State())
+-    private let output = DispatchQueue(label: "smwo1.swift-event-output")
++    private let output = DispatchQueue(label: "cm1.swift-event-output")
+     private let origin = DispatchTime.now().uptimeNanoseconds
+     let session: String
+     init(_ session: String) { self.session = session }
+-    func record(_ event: String, _ fields: [String: JSON] = [:]) {
++    func record(_ event: String, _ fields: [String: WireJSON] = [:]) {
+         state.withLock { s in
+             s.seq += 1
+             var f = fields
+             f["v"] = .n(1); if f["kind"] == nil { f["kind"] = .string(event) }; f["event"] = .string(event); f["session"] = .string(session); f["swift_seq"] = .n(s.seq)
+             f["swift_ns"] = .int(Int64(DispatchTime.now().uptimeNanoseconds - origin))
+-            f["clock_origin"] = .string("Swift Trace construction; monotonic uptimeNanoseconds")
+-            let value = JSON.object(f); s.events.append(value)
++            f["clock_origin"] = .string("Swift TransportTrace construction; monotonic uptimeNanoseconds")
++            let value = WireJSON.object(f); s.events.append(value)
+             if let data = try? value.data() { output.async { FileHandle.standardOutput.write(data + Data([10])) } }
+         }
+     }
+-    func snapshot() -> JSON { state.withLock { .array($0.events) } }
++    func snapshot() -> WireJSON { state.withLock { .array($0.events) } }
+     func flush() async { await withCheckedContinuation { c in output.async { c.resume() } } }
+-    func save(_ url: URL, extra: [String: JSON]) throws {
+-        var all = extra; all["events"] = snapshot(); try JSON.object(all).data().write(to: url, options: .atomic)
+-    }
+-}
+-
+-struct LeaseID: Sendable, Equatable {
++    func save(_ url: URL, extra: [String: WireJSON]) throws {
++        var all = extra; all["events"] = snapshot(); try WireJSON.object(all).data().write(to: url, options: .atomic)
++    }
++}
++
++struct WireLease: Sendable, Equatable {
+     let session: String, worker: String, request: String, task: String
+     let epoch: Int
+-    var json: JSON { .object(["session": .string(session), "worker_id": .string(worker), "request": .string(request), "task_id": .string(task), "epoch": .n(epoch)]) }
+-}
+-struct HostReceipt: Sendable, Equatable {
+-    let lease: LeaseID
+-    let raw: JSON
++    var json: WireJSON { .object(["session": .string(session), "worker_id": .string(worker), "request": .string(request), "task_id": .string(task), "epoch": .n(epoch)]) }
++}
++struct WireReceipt: Sendable, Equatable {
++    let lease: WireLease
++    let raw: WireJSON
+     var token: Int { raw["token_id"].integer! }
+ }
+-enum ProducerOutcome: Sendable, Equatable {
+-    case success(HostReceipt)
+-    case failure(LeaseID, BridgeFault)
+-    var lease: LeaseID { switch self { case .success(let r): r.lease; case .failure(let l, _): l } }
+-    func get() throws -> HostReceipt { switch self { case .success(let r): return r; case .failure(_, let e): throw e } }
+-    var json: JSON { switch self {
+-    case .success(let r): .object(["kind": .string("success"), "lease": r.lease.json, "receipt": r.raw])
+-    case .failure(let l, let e): .object(["kind": .string("failure"), "lease": l.json, "fault": e.json])
+-    } }
+-}
+-struct Deadlines: Sendable {
++struct WireRequest: Sendable {
++    let name: String, operation: String, task: String, purpose: String, digest: String
++    let tokens: [WireJSON], sourceContext: WireJSON, nativeContext: WireJSON
++    init(name: String, operation: String, task: String, purpose: String, tokens: [UInt64], sourceContext: WireJSON, nativeContext: WireJSON) throws {
++        let count = operation == "Prefill32" ? 32 : operation == "Prefill8" ? 8 : 0
++        try require(count > 0 && tokens.count == count && tokens.allSatisfy { $0 < 151936 }, "Prefill operation/token shape/range before submission")
++        try require(!name.isEmpty && !task.isEmpty && (purpose == "checked-source" || purpose == "native-reference"), "request identity/domain")
++        self.name = name; self.operation = operation; self.task = task; self.purpose = purpose
++        self.tokens = tokens.map { .int(Int64($0)) }; self.sourceContext = sourceContext; self.nativeContext = nativeContext
++        self.digest = try transportDigest(WireJSON.array(self.tokens).data())
++    }
++    var context: [String: WireJSON] { ["operation": .string(operation), "purpose": .string(purpose), "source_context": sourceContext, "native_context": nativeContext] }
++}
++struct TransportInputs: Sendable {
++    static let python = "/Users/fbsh/tiny-llm/.venv/bin/python"
++    static let a32 = [10711,5043,13037,21429,1682,2473,27011,17659,3184,12082,19196,2000,29909,16727,7135,1328,2916,14309,13802,2389,7986,3072,18156,14010,2036,27194,18628,4156,7415,20764,20659,19203]
++    static let b7 = [2127,19010,19287,13098,1724,7344,1626]
++    let path: String, sha256: String, raw: WireJSON
++    init(_ path: String) throws {
++        try require(path.hasPrefix("/"), "absolute input path")
++        let data = try Data(contentsOf: URL(fileURLWithPath: path)); let raw = try WireJSON.parse(data)
++        try require(raw["schema"].string == "cm1-inputs-v1" && raw["first_run_evaluations"].integer == 2 && raw["requests"] == .null, "CM1 input schema/fixed first-run metadata")
++        try require(raw["python"].string == Self.python && raw["tiny_root"].string == "/Users/fbsh/tiny-llm", "fixed worker Python/reference paths")
++        let snapshot = "173234aa840d113125e9f2271100ddbaf16c9620"
++        try require(raw["model_snapshot"].string == snapshot && raw["model"].string == "/Users/fbsh/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-MLX-4bit/snapshots/" + snapshot, "fixed cached model")
++        try require(raw["layers"].integer == 28 && raw["page_size"].integer == 128 && raw["vocab_size"].integer == 151936, "fixed geometry")
++        try require(raw["a32"] == .array(Self.a32.map(WireJSON.n)) && raw["b_prefix7"] == .array(Self.b7.map(WireJSON.n)), "frozen A32/B7 arrays")
++        try require(raw["b_last_token_rule"].string == "this-session-actual-A-result", "B eighth token must be produced in this session")
++        self.path = path; self.sha256 = transportDigest(data); self.raw = raw
++    }
++}
++struct TransportDeadlines: Sendable {
+     let ready: Double, command: Double, gate: Double
+-    static let gpu = Deadlines(ready: 60, command: 30, gate: 30)
++    static let gpu = TransportDeadlines(ready: 60, command: 30, gate: 30)
+     // CPU-only pipe fault fixtures; these do not change GPU constants.
+-    static let cpu = Deadlines(ready: 3, command: 1.5, gate: 3)
++    static let cpu = TransportDeadlines(ready: 3, command: 1.5, gate: 3)
+ }
+ 
+ // JSONDecoder alone accepts repeated object keys and may coerce 1.0 to Int.
+@@ -159,32 +190,32 @@
+     let bytes: [UInt8]
+     var index = 0
+     mutating func whitespace() { while index < bytes.count && [9, 10, 13, 32].contains(bytes[index]) { index += 1 } }
+-    mutating func take(_ byte: UInt8) throws { whitespace(); try require(index < bytes.count && bytes[index] == byte, "JSON delimiter"); index += 1 }
++    mutating func take(_ byte: UInt8) throws { whitespace(); try require(index < bytes.count && bytes[index] == byte, "WireJSON delimiter"); index += 1 }
+     mutating func string() throws -> String {
+         whitespace(); let begin = index
+-        try require(index < bytes.count && bytes[index] == 34, "JSON string"); index += 1
++        try require(index < bytes.count && bytes[index] == 34, "WireJSON string"); index += 1
+         while index < bytes.count {
+             let byte = bytes[index]; index += 1
+             if byte == 34 { return try JSONDecoder().decode(String.self, from: Data(bytes[begin..<index])) }
+-            if byte == 92 { try require(index < bytes.count, "JSON escape"); index += 1 }
+-            else { try require(byte >= 32, "JSON control character") }
+-        }
+-        throw BridgeFault("malformed_frame", "unterminated JSON string")
+-    }
+-    mutating func value(_ depth: Int) throws -> JSON {
+-        whitespace(); try require(depth <= 64 && index < bytes.count, "JSON depth/value")
++            if byte == 92 { try require(index < bytes.count, "WireJSON escape"); index += 1 }
++            else { try require(byte >= 32, "WireJSON control character") }
++        }
++        throw TransportFault("malformed_frame", "unterminated WireJSON string")
++    }
++    mutating func value(_ depth: Int) throws -> WireJSON {
++        whitespace(); try require(depth <= 64 && index < bytes.count, "WireJSON depth/value")
+         switch bytes[index] {
+         case 123:
+-            index += 1; whitespace(); var object: [String: JSON] = [:]
++            index += 1; whitespace(); var object: [String: WireJSON] = [:]
+             if index < bytes.count && bytes[index] == 125 { index += 1; return .object(object) }
+             while true {
+-                let key = try string(); try require(object[key] == nil, "duplicate JSON key")
++                let key = try string(); try require(object[key] == nil, "duplicate WireJSON key")
+                 try take(58); object[key] = try value(depth + 1); whitespace()
+                 if index < bytes.count && bytes[index] == 125 { index += 1; return .object(object) }
+                 try take(44)
+             }
+         case 91:
+-            index += 1; whitespace(); var array: [JSON] = []
++            index += 1; whitespace(); var array: [WireJSON] = []
+             if index < bytes.count && bytes[index] == 93 { index += 1; return .array(array) }
+             while true {
+                 array.append(try value(depth + 1)); whitespace()
+@@ -195,9 +226,9 @@
+         default:
+             let begin = index
+             while index < bytes.count && ![9, 10, 13, 32, 44, 93, 125].contains(bytes[index]) { index += 1 }
+-            try require(index > begin, "JSON primitive")
++            try require(index > begin, "WireJSON primitive")
+             let raw = Data(bytes[begin..<index])
+-            let decoded = try JSONDecoder().decode(JSON.self, from: raw)
++            let decoded = try JSONDecoder().decode(WireJSON.self, from: raw)
+             if bytes[begin] == 45 || (48...57).contains(bytes[begin]) {
+                 if raw.contains(46) || raw.contains(101) || raw.contains(69) { return .real(try JSONDecoder().decode(Double.self, from: raw)) }
+                 return .int(try JSONDecoder().decode(Int64.self, from: raw))
+@@ -205,5 +236,5 @@
+             return decoded
+         }
+     }
+-    mutating func check() throws -> JSON { let result = try value(0); whitespace(); try require(index == bytes.count, "JSON trailing bytes"); return result }
+-}
++    mutating func check() throws -> WireJSON { let result = try value(0); whitespace(); try require(index == bytes.count, "WireJSON trailing bytes"); return result }
++}
+--- /Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/Session.swift
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/MLXTransport/Session.swift
+@@ -2,6 +2,7 @@
+ import Synchronization
+ import Dispatch
+ import Darwin
++import RuntimeCore
+ 
+ // A protocol pipe must return a positive short read immediately. Do not fill
+ // the requested 4096-byte capacity before exposing a HELLO/permit frame. These
+@@ -15,37 +16,7 @@
+         if count == 0 { return Data() }
+         let code = errno
+         if code == EINTR { continue }
+-        throw BridgeFault("pipe_read", "\(label), fd \(descriptor), errno \(code)")
+-    }
+-}
+-
+-struct RequestSpec: Sendable {
+-    let name: String, role: String, digest: String
+-    let epoch: Int, tokens: [JSON]
+-    var json: JSON { .object(["request_id": .string(name), "role": .string(role), "lease_epoch": .n(epoch), "token_ids": .array(tokens), "input_sha256": .string(digest)]) }
+-}
+-struct Inputs: Sendable {
+-    let path: String, sha256: String, raw: JSON, requests: [RequestSpec]
+-    init(_ path: String) throws {
+-        let bytes = try Data(contentsOf: URL(fileURLWithPath: path))
+-        let raw = try JSON.parse(bytes)
+-        try require(raw["schema"].string == "smwo1-inputs-v1", "inputs schema")
+-        try require(raw["seed"].integer == 7 && raw["model_snapshot"].string == "173234aa840d113125e9f2271100ddbaf16c9620", "frozen seed/model snapshot")
+-        try require(raw["layers"].integer == 28 && raw["page_size"].integer == 128 && raw["vocab_size"].integer == 151936, "model dimensions")
+-        let names = ["ref-A", "ref-B", "N-A", "N-B", "D-A", "D-B"]
+-        guard let rows = raw["requests"].array, rows.count == 6 else { throw BridgeFault("inputs", "six frozen requests required") }
+-        var requests: [RequestSpec] = []
+-        for (i, row) in rows.enumerated() {
+-            guard let tokens = row["token_ids"].array, let hash = row["input_sha256"].string, let role = row["role"].string else { throw BridgeFault("inputs", "request fields") }
+-            try require(row["request_id"].string == names[i] && row["lease_epoch"].integer == i + 1, "request order/epoch")
+-            try require(role == (i % 2 == 0 ? "A" : "B") && tokens.count == (i % 2 == 0 ? 32 : 8), "role/token count")
+-            try require(tokens.allSatisfy { $0.integer.map { (100...30000).contains($0) } ?? false }, "token IDs")
+-            let tokenBytes = try JSON.array(tokens).data()
+-            try require(digest(tokenBytes) == hash, "token digest")
+-            if i >= 2 { try require(tokens == requests[i % 2].tokens, "trial/reference identical inputs") }
+-            requests.append(RequestSpec(name: names[i], role: role, digest: hash, epoch: i + 1, tokens: tokens))
+-        }
+-        self.path = path; self.sha256 = digest(bytes); self.raw = raw; self.requests = requests
++        throw TransportFault("pipe_read", "\(label), fd \(descriptor), errno \(code)")
+     }
+ }
+ 
+@@ -58,7 +29,7 @@
+         var actions: posix_spawn_file_actions_t? = nil
+         var attributes: posix_spawnattr_t? = nil
+         func checked(_ code: Int32, _ operation: String) throws {
+-            if code != 0 { throw BridgeFault("spawn", "\(operation): errno \(code)") }
++            if code != 0 { throw TransportFault("spawn", "\(operation): errno \(code)") }
+         }
+         try checked(posix_spawn_file_actions_init(&actions), "file-actions init")
+         defer { posix_spawn_file_actions_destroy(&actions) }
+@@ -92,16 +63,16 @@
+ // One independently rooted stdin reader for the whole Swift process. CPU
+ // workers use distinct routing IDs. Only an OS-checking outer wrapper can send
+ // LOAD_PERMIT; Swift never creates one. A control EOF is not a permit.
+-final class PermitRouter: Sendable {
+-    private struct State { var receivers: [String: @Sendable (Result<JSON, BridgeFault>) -> Void] = [:]; var ended = false; var closing = false; var readerJoined = false }
++final class TransportPermitRouter: Sendable {
++    private struct State { var receivers: [String: @Sendable (Result<WireJSON, TransportFault>) -> Void] = [:]; var ended = false; var closing = false; var readerJoined = false }
+     private let state = Mutex(State())
+-    private let reader = DispatchQueue(label: "smwo1.wrapper-control-reader")
+-    private let trace: Trace
+-    private let ended = Promise<Bool>()
+-    init(_ trace: Trace) { self.trace = trace }
+-    func register(_ id: String, _ receive: @escaping @Sendable (Result<JSON, BridgeFault>) -> Void) {
++    private let reader = DispatchQueue(label: "cm1.wrapper-control-reader")
++    private let trace: TransportTrace
++    private let ended = TransportPromise<Bool>()
++    init(_ trace: TransportTrace) { self.trace = trace }
++    func register(_ id: String, _ receive: @escaping @Sendable (Result<WireJSON, TransportFault>) -> Void) {
+         let ended = state.withLock { s in s.receivers[id] = receive; return s.ended }
+-        if ended { receive(.failure(BridgeFault("control_eof", "wrapper control already closed"))) }
++        if ended { receive(.failure(TransportFault("control_eof", "wrapper control already closed"))) }
+     }
+     func unregister(_ id: String) { state.withLock { $0.receivers.removeValue(forKey: id) } }
+     func start() {
+@@ -110,23 +81,23 @@
+             while true {
+                 let chunk: Data
+                 do { chunk = try readPipeChunk(STDIN_FILENO, "wrapper control") }
+-                catch { end((error as? BridgeFault) ?? BridgeFault("pipe_read", String(describing: error))); return }
+-                if chunk.isEmpty { end(BridgeFault("control_eof", buffer.isEmpty ? "wrapper stdin EOF" : "truncated wrapper permit")); return }
++                catch { end((error as? TransportFault) ?? TransportFault("pipe_read", String(describing: error))); return }
++                if chunk.isEmpty { end(TransportFault("control_eof", buffer.isEmpty ? "wrapper stdin EOF" : "truncated wrapper permit")); return }
+                 buffer.append(chunk)
+                 while let newline = buffer.firstIndex(of: 10) {
+                     let line = Data(buffer[..<newline]); buffer.removeSubrange(...newline)
+-                    if line.count + 1 > 1_048_576 { end(BridgeFault("control_frame", "wrapper frame including LF exceeds bound")); return }
++                    if line.count + 1 > 1_048_576 { end(TransportFault("control_frame", "wrapper frame including LF exceeds bound")); return }
+                     do {
+-                        let value = try JSON.parse(line)
+-                        guard let id = value["worker_id"].string, let receive = state.withLock({ $0.receivers[id] }) else { throw BridgeFault("control_identity", "unknown permit worker") }
++                        let value = try WireJSON.parse(line)
++                        guard let id = value["worker_id"].string, let receive = state.withLock({ $0.receivers[id] }) else { throw TransportFault("control_identity", "unknown permit worker") }
+                         receive(.success(value))
+-                    } catch { end((error as? BridgeFault) ?? BridgeFault("control_frame", String(describing: error))); return }
++                    } catch { end((error as? TransportFault) ?? TransportFault("control_frame", String(describing: error))); return }
+                 }
+-                if buffer.count >= 1_048_576 { end(BridgeFault("control_frame", "unterminated wrapper frame leaves no room for LF")); return }
+-            }
+-        }
+-    }
+-    private func end(_ fault: BridgeFault) {
++                if buffer.count >= 1_048_576 { end(TransportFault("control_frame", "unterminated wrapper frame leaves no room for LF")); return }
++            }
++        }
++    }
++    private func end(_ fault: TransportFault) {
+         let receivers = state.withLock { s in s.ended = true; return Array(s.receivers.values) }
+         trace.record("control.reader_ended", ["fault": fault.json])
+         let normal = state.withLock { $0.closing } && fault.code == "control_eof" && fault.detail == "wrapper stdin EOF"
+@@ -136,44 +107,47 @@
+     func finish() async throws {
+         try state.withLock { s in try require(s.receivers.isEmpty && !s.ended, "control close only after all worker routes retired"); s.closing = true }
+         trace.record("control_close", ["kind": .string("control_close")])
+-        ended.deadline(3, BridgeFault("control_close_timeout", "wrapper stdin EOF"))
++        ended.deadline(3, TransportFault("control_close_timeout", "wrapper stdin EOF"))
+         _ = try await ended.wait()
+         await withCheckedContinuation { c in reader.async { [self] in state.withLock { $0.readerJoined = true }; c.resume() } }
+         trace.record("control.reader_joined")
+     }
+-    func snapshot() -> JSON { state.withLock { .object(["reader_ended": .bool($0.ended), "reader_joined": .bool($0.readerJoined), "registered_workers": .strings(Array($0.receivers.keys).sorted())]) } }
++    func snapshot() -> WireJSON { state.withLock { .object(["reader_ended": .bool($0.ended), "reader_joined": .bool($0.readerJoined), "registered_workers": .strings(Array($0.receivers.keys).sorted())]) } }
+ }
+ 
+-final class WorkerSession: Sendable {
++final class TransportSession: Sendable {
+     private struct Pending: Sendable {
+-        let kind: String, seq: Int, command: JSON, lease: LeaseID?, spec: RequestSpec?
+-        let reply: Promise<JSON>
+-        let entered: Promise<JSON>?
++        let kind: String, seq: Int, command: WireJSON, lease: WireLease?, spec: WireRequest?
++        let reply: TransportPromise<WireJSON>
+         var sawEnter = false
+-        var enterLayers: JSON?
++        var enterLayers: WireJSON?
+     }
+     private struct State {
+         var pid = 0, eventSeq = 0, nextSeq = 1
+-        var phase = "created", permit = false, ready: JSON?, pending: Pending?, receipt: HostReceipt?
+-        var fault: BridgeFault?
++        var phase = "created", permit = false, ready: WireJSON?, pending: Pending?, receipt: WireReceipt?
++        var fault: TransportFault?
+         var processExited = false, exitCode: Int?, stdoutEOF = false, stderrEOF = false, shutdownACK = false
+         var waitStatus: Int?, terminationSignal: Int?
+-        var stdoutJoined = false, stderrJoined = false, stdinClosed = false
+-        var terminalError: JSON?, trailingBytes = 0
++        var stdoutJoined = false, stderrJoined = false, stdinClosed = false, stdinCloseIssued = false
++        var terminalError: WireJSON?, trailingBytes = 0
+         var rawFrames = 0, commands = 0
++        var evalClaims = 0, completedReleases = 0
++        var requestIDs: Set<String> = []
++        var pageEpochs: [String: [Int: Int]] = [:]
++        var validatedReceipts: [WireReceipt] = [], validatedACKs: [WireJSON] = []
+     }
+     private let state = Mutex(State())
+     private let handles = ProcessHandles()
+-    private let stdoutQueue = DispatchQueue(label: "smwo1.worker-stdout")
+-    private let stderrQueue = DispatchQueue(label: "smwo1.worker-stderr")
+-    private let writeQueue = DispatchQueue(label: "smwo1.worker-stdin")
+-    private let reapQueue = DispatchQueue(label: "smwo1.worker-reap")
+-    private let readyPromise = Promise<JSON>(), reapPromise = Promise<Int>(), stdoutDone = Promise<Bool>(), stderrDone = Promise<Bool>(), stdinDone = Promise<Bool>()
++    private let stdoutQueue = DispatchQueue(label: "cm1.worker-stdout")
++    private let stderrQueue = DispatchQueue(label: "cm1.worker-stderr")
++    private let writeQueue = DispatchQueue(label: "cm1.worker-stdin")
++    private let reapQueue = DispatchQueue(label: "cm1.worker-reap")
++    private let readyPromise = TransportPromise<WireJSON>(), reapPromise = TransportPromise<Int>(), stdoutDone = TransportPromise<Bool>(), stderrDone = TransportPromise<Bool>(), stdinDone = TransportPromise<Bool>()
+     let id = UUID().uuidString
+-    let inputs: Inputs, trace: Trace, deadlines: Deadlines, scenario: String
+-    private let router: PermitRouter, directory: URL
++    let inputs: TransportInputs, trace: TransportTrace, deadlines: TransportDeadlines, scenario: String
++    private let router: TransportPermitRouter, directory: URL
+     private let python: String, script: String, cpu: Bool
+-    init(inputs: Inputs, trace: Trace, router: PermitRouter, directory: URL, python: String, script: String, cpu: Bool, scenario: String = "success") {
++    init(inputs: TransportInputs, trace: TransportTrace, router: TransportPermitRouter, directory: URL, python: String, script: String, cpu: Bool, scenario: String = "success") {
+         self.inputs = inputs; self.trace = trace; self.router = router; self.directory = directory; self.python = python; self.script = script; self.cpu = cpu; self.scenario = scenario; self.deadlines = cpu ? .cpu : .gpu
+     }
+     func start() async throws {
+@@ -187,7 +161,7 @@
+         environment["PYTHONDONTWRITEBYTECODE"] = "1"; environment["HF_HUB_OFFLINE"] = "1"; environment["TRANSFORMERS_OFFLINE"] = "1"
+         let pid: Int
+         do { pid = Int(try handles.spawn(python, arguments: args, environment: environment)) }
+-        catch { let fault = (error as? BridgeFault) ?? BridgeFault("spawn", String(describing: error)); fail(fault); throw fault }
++        catch { let fault = (error as? TransportFault) ?? TransportFault("spawn", String(describing: error)); fail(fault); throw fault }
+         state.withLock { $0.pid = pid; if $0.fault == nil { $0.phase = "hello" } }
+         trace.record("worker.started", ["worker_id": .string(id), "created_pid": .n(pid), "argv": .strings([python] + args), "scenario": .string(scenario)])
+         stdoutQueue.async { [self] in
+@@ -203,12 +177,12 @@
+             var observed: pid_t
+             repeat { observed = Darwin.waitpid(pid_t(pid), &status, 0) } while observed == -1 && errno == EINTR
+             guard observed == pid_t(pid) else {
+-                let fault = BridgeFault("waitpid", "pid \(pid), errno \(errno)"); fail(fault); reapPromise.resolve(.failure(fault)); return
++                let fault = TransportFault("waitpid", "pid \(pid), errno \(errno)"); fail(fault); reapPromise.resolve(.failure(fault)); return
+             }
+             // Darwin wait.h WIFEXITED/WEXITSTATUS/WTERMSIG encodings. waitpid
+             // without WUNTRACED/WCONTINUED returns a terminal status here.
+             let signal = Int(status & 0x7f)
+-            guard signal != 0x7f else { let fault = BridgeFault("waitpid", "unexpected nonterminal wait status \(status)"); fail(fault); reapPromise.resolve(.failure(fault)); return }
++            guard signal != 0x7f else { let fault = TransportFault("waitpid", "unexpected nonterminal wait status \(status)"); fail(fault); reapPromise.resolve(.failure(fault)); return }
+             let code = signal == 0 ? Int((status >> 8) & 0xff) : 128 + signal
+             let expected = state.withLock { s in
+                 s.processExited = true; s.exitCode = code; s.waitStatus = Int(status); s.terminationSignal = signal == 0 ? nil : signal
+@@ -216,24 +190,24 @@
+             }
+             // Nonzero OS termination immediately blocks commands/admission.
+             // A later pipe ERROR remains diagnostic raw, never replaces first fault.
+-            if code != 0 { fail(BridgeFault("worker_exit", "exit \(code)")) }
++            if code != 0 { fail(TransportFault("worker_exit", "exit \(code)")) }
+             trace.record("worker.reaped", ["worker_id": .string(id), "pid": .n(pid), "exit_code": .n(code), "wait_status": .n(Int(status)), "termination_signal": signal == 0 ? .null : .n(signal), "shutdown_ack_already_observed": .bool(expected)])
+             reapPromise.resolve(.success(code))
+         }
+-        readyPromise.deadline(deadlines.ready, BridgeFault("ready_timeout", scenario)) { [self] in fail($0) }
++        readyPromise.deadline(deadlines.ready, TransportFault("ready_timeout", scenario)) { [self] in fail($0) }
+         _ = try await readyPromise.wait()
+     }
+-    private func emitWrite(_ value: JSON) {
++    private func emitWrite(_ value: WireJSON) {
+         writeQueue.async { [self] in
+             do {
+                 let allowed = state.withLock { $0.fault == nil && !$0.processExited }
+                 guard allowed else { return }
+                 try handles.input.fileHandleForWriting.write(contentsOf: try value.data() + Data([10]))
+                 trace.record("wire.sent", ["worker_id": .string(id), "message": value])
+-            } catch { fail(BridgeFault("broken_pipe", String(describing: error))) }
+-        }
+-    }
+-    private func acceptPermit(_ permit: JSON) {
++            } catch { fail(TransportFault("broken_pipe", String(describing: error))) }
++        }
++    }
++    private func acceptPermit(_ permit: WireJSON) {
+         do {
+             try state.withLock { s in
+                 try checkCommonCommand(permit)
+@@ -243,58 +217,57 @@
+                 s.permit = true; s.phase = "loading"
+             }
+             trace.record("worker.permit_forwarded", ["worker_id": .string(id), "permit": permit]); emitWrite(permit)
+-        } catch { fail((error as? BridgeFault) ?? BridgeFault("permit", String(describing: error))) }
+-    }
+-    private func checkCommonCommand(_ value: JSON) throws {
++        } catch { fail((error as? TransportFault) ?? TransportFault("permit", String(describing: error))) }
++    }
++    private func checkCommonCommand(_ value: WireJSON) throws {
+         try require(value["v"].integer == 1 && value["session"].string == trace.session && value["worker_id"].string == id, "wire version/session/worker")
+     }
+     private func readStdout() {
+         defer { try? handles.output.fileHandleForReading.close() }
+         let url = directory.appendingPathComponent("worker-\(id).stdout.jsonl")
+         FileManager.default.createFile(atPath: url.path, contents: nil)
+-        guard let raw = try? FileHandle(forWritingTo: url) else { fail(BridgeFault("raw_output", url.path)); return }
++        guard let raw = try? FileHandle(forWritingTo: url) else { fail(TransportFault("raw_output", url.path)); return }
+         defer { try? raw.close() }
+         var buffer = Data()
+         while true {
+             let chunk: Data
+             do { chunk = try readPipeChunk(handles.output.fileHandleForReading.fileDescriptor, "worker \(id) stdout") }
+-            catch { fail((error as? BridgeFault) ?? BridgeFault("pipe_read", String(describing: error))); return }
++            catch { fail((error as? TransportFault) ?? TransportFault("pipe_read", String(describing: error))); return }
+             if chunk.isEmpty {
+                 let complete = state.withLock { $0.shutdownACK }
+-                if !buffer.isEmpty { fail(BridgeFault("truncated_frame", "worker EOF mid-line")) }
+-                else if !complete { fail(BridgeFault("worker_eof", "EOF before SHUTDOWN_ACK")) }
++                if !buffer.isEmpty { fail(TransportFault("truncated_frame", "worker EOF mid-line")) }
++                else if !complete { fail(TransportFault("worker_eof", "EOF before SHUTDOWN_ACK")) }
+                 state.withLock { $0.stdoutEOF = true; $0.trailingBytes = buffer.count }
+                 trace.record("worker.stdout_eof", ["worker_id": .string(id), "trailing_bytes": .n(buffer.count)])
+                 return
+             }
+-            do { try raw.write(contentsOf: chunk) } catch { fail(BridgeFault("raw_output", String(describing: error))); return }
++            do { try raw.write(contentsOf: chunk) } catch { fail(TransportFault("raw_output", String(describing: error))); return }
+             buffer.append(chunk)
+             while let newline = buffer.firstIndex(of: 10) {
+                 let line = Data(buffer[..<newline]); buffer.removeSubrange(...newline)
+-                if line.count + 1 > 1_048_576 { fail(BridgeFault("oversize_frame", "worker frame including LF >1MiB")); return }
+-                do { try consume(try JSON.parse(line)) }
+-                catch { fail((error as? BridgeFault) ?? BridgeFault("malformed_frame", String(describing: error))) }
+-            }
+-            if buffer.count >= 1_048_576 { fail(BridgeFault("oversize_frame", "unterminated worker frame leaves no room for LF")); return }
++                if line.count + 1 > 1_048_576 { fail(TransportFault("oversize_frame", "worker frame including LF >1MiB")); return }
++                do { try consume(try WireJSON.parse(line)) }
++                catch { fail((error as? TransportFault) ?? TransportFault("malformed_frame", String(describing: error))) }
++            }
++            if buffer.count >= 1_048_576 { fail(TransportFault("oversize_frame", "unterminated worker frame leaves no room for LF")); return }
+         }
+     }
+     private func readStderr() {
+         defer { try? handles.error.fileHandleForReading.close() }
+         let url = directory.appendingPathComponent("worker-\(id).stderr.log")
+         FileManager.default.createFile(atPath: url.path, contents: nil)
+-        guard let raw = try? FileHandle(forWritingTo: url) else { fail(BridgeFault("raw_stderr", url.path)); return }
++        guard let raw = try? FileHandle(forWritingTo: url) else { fail(TransportFault("raw_stderr", url.path)); return }
+         defer { try? raw.close() }
+         while true {
+             let chunk: Data
+             do { chunk = try readPipeChunk(handles.error.fileHandleForReading.fileDescriptor, "worker \(id) stderr") }
+-            catch { fail((error as? BridgeFault) ?? BridgeFault("pipe_read", String(describing: error))); return }
++            catch { fail((error as? TransportFault) ?? TransportFault("pipe_read", String(describing: error))); return }
+             if chunk.isEmpty { state.withLock { $0.stderrEOF = true }; trace.record("worker.stderr_eof", ["worker_id": .string(id)]); return }
+-            do { try raw.write(contentsOf: chunk) } catch { fail(BridgeFault("raw_stderr", String(describing: error))); return }
+-        }
+-    }
+-    private func consume(_ value: JSON) throws {
+-        var result: (Promise<JSON>, JSON)?
+-        var enter: (Promise<JSON>, JSON)?
++            do { try raw.write(contentsOf: chunk) } catch { fail(TransportFault("raw_stderr", String(describing: error))); return }
++        }
++    }
++    private func consume(_ value: WireJSON) throws {
++        var result: (TransportPromise<WireJSON>, WireJSON)?
+         var hello = false, ready = false
+         try state.withLock { s in
+             s.rawFrames += 1
+@@ -304,7 +277,7 @@
+             try require(value["pid"].integer == s.pid && value["pgid"].integer == Int(getpgrp()), "worker PID/PGID")
+             try require(value["event_seq"].integer == s.eventSeq + 1 && value["worker_ns"].integer != nil, "worker event sequence/clock")
+             s.eventSeq += 1
+-            guard let kind = value["kind"].string else { throw BridgeFault("wire_kind", "missing kind") }
++            guard let kind = value["kind"].string else { throw TransportFault("wire_kind", "missing kind") }
+             trace.record("wire.received", ["worker_id": .string(id), "message": value])
+             if kind == "ERROR" {
+                 try require(value["unresolved"].bool == true && value["fault_id"].string == "\(trace.session)/\(id)/error/\(s.eventSeq)" && value["phase"].string != nil, "ERROR identity/phase")
+@@ -312,7 +285,7 @@
+                     try require(value["seq"].integer == pending.seq, "ERROR pending command")
+                     if let lease = pending.lease { try require(value["request_id"].string == lease.request && value["lease_epoch"].integer == lease.epoch, "ERROR lease") }
+                 }
+-                throw BridgeFault(value["code"].string ?? "worker_error", value.text(), id: value["fault_id"].string ?? "missing-worker-fault-id")
++                throw TransportFault(value["code"].string ?? "worker_error", value.text(), id: value["fault_id"].string ?? "missing-worker-fault-id")
+             }
+             if kind == "HELLO" {
+                 try require(s.phase == "hello" && s.eventSeq == 1 && value["swift_pid"].integer == Int(getpid()) && value["inputs_sha256"].string == inputs.sha256 && value["backend"].string == (cpu ? "stub" : "mlx"), "HELLO phase/identity")
+@@ -320,45 +293,63 @@
+             }
+             if kind == "READY" {
+                 try require(s.phase == "loading" && s.permit, "READY before permit or duplicate")
+-                try validateReady(value); s.ready = value; s.phase = "ready"; ready = true; return
+-            }
+-            guard var pending = s.pending else { throw BridgeFault("unexpected_reply", "\(kind) with no pending command") }
++                try validateReady(value)
++                guard readyPromise.reserve() else { return }
++                s.ready = value; s.phase = "ready"; ready = true; return
++            }
++            guard var pending = s.pending else { throw TransportFault("unexpected_reply", "\(kind) with no pending command") }
+             try require(value["seq"].integer == pending.seq, "reply command sequence")
+             if let lease = pending.lease { try require(value["request_id"].string == lease.request && value["lease_epoch"].integer == lease.epoch, "reply lease identity") }
++            if pending.lease != nil {
++                for key in ["operation", "purpose", "source_context", "native_context"] {
++                    try require(value[key] == pending.command[key], "reply preserves original request context \(key)")
++                }
++            }
+             switch (pending.kind, kind) {
+             case ("EVAL", "EVAL_ENTER"):
+                 try require(!pending.sawEnter && value["input_sha256"].string == pending.spec!.digest && value["token_count"].integer == pending.spec!.tokens.count, "EVAL_ENTER once/input")
+-                try validateLiveLayers(value["layers"], lease: pending.lease!, count: pending.spec!.tokens.count, ready: s.ready!)
++                try validateLiveLayers(value["layers"], count: pending.spec!.tokens.count, ready: s.ready!)
++                s.pageEpochs = try nextPageEpochs(value["layers"], previous: s.pageEpochs)
+                 pending.sawEnter = true; pending.enterLayers = value["layers"]; s.pending = pending
+-                if let entered = pending.entered { enter = (entered, value) }
+             case ("EVAL", "EVAL_RECEIPT"):
+                 try require(pending.sawEnter && value["sealed"].bool == true, "receipt requires ENTER/sealed")
+                 try require(pending.enterLayers == value["layers"], "receipt preserves original EVAL_ENTER page identities")
+                 try require(value["receipt_id"].string == "\(trace.session)/\(id)/eval/\(pending.seq)" && value["input_sha256"].string == pending.spec!.digest && value["token_count"].integer == pending.spec!.tokens.count, "receipt identity/input")
+                 try require(value["token_id"].integer.map { (0..<151936).contains($0) } ?? false, "receipt token")
+-                guard let begin = value["eval_begin_ns"].integer, let end = value["eval_end_ns"].integer, let item = value["item_end_ns"].integer else { throw BridgeFault("receipt", "missing worker clocks") }
++                guard let begin = value["eval_begin_ns"].integer, let end = value["eval_end_ns"].integer, let item = value["item_end_ns"].integer else { throw TransportFault("receipt", "missing worker clocks") }
+                 try require(begin <= end && end <= item, "worker-local eval/item order")
+-                try validateLiveLayers(value["layers"], lease: pending.lease!, count: pending.spec!.tokens.count, ready: s.ready!)
+-                s.receipt = HostReceipt(lease: pending.lease!, raw: value); s.phase = "leased"; s.pending = nil; result = (pending.reply, value)
++                try validateLiveLayers(value["layers"], count: pending.spec!.tokens.count, ready: s.ready!)
++                // Reserve the same promise while holding health/phase. A
++                // previously reserved timeout is not a validated receipt;
++                // once this wins, a later fault cannot replace this success.
++                guard pending.reply.reserve() else { return }
++                let receipt = WireReceipt(lease: pending.lease!, raw: value)
++                s.receipt = receipt; s.validatedReceipts.append(receipt)
++                s.phase = "leased"; s.pending = nil; result = (pending.reply, value)
++                trace.record("transport.receipt_validated", ["worker_id": .string(id), "receipt": value])
+             case ("RELEASE", "RELEASE_ACK"):
+                 try validateRelease(value, receipt: s.receipt!, ready: s.ready!)
++                guard pending.reply.reserve() else { return }
++                s.validatedACKs.append(value); s.completedReleases += 1
+                 s.receipt = nil; s.phase = "ready"; s.pending = nil; result = (pending.reply, value)
++                trace.record("transport.ack_validated", ["worker_id": .string(id), "ack": value])
+             case ("SHUTDOWN", "SHUTDOWN_ACK"):
+                 try require(value["all_released"].bool == true, "shutdown release evidence")
++                try require(value["completed_evaluations"].integer == s.completedReleases && s.completedReleases == s.evalClaims, "shutdown exact completed claims")
+                 try validateEmptyPools(value["pools"], ready: s.ready!)
++                guard pending.reply.reserve() else { return }
+                 s.shutdownACK = true; s.phase = "shutdown_ack"; s.pending = nil; result = (pending.reply, value)
+-            default: throw BridgeFault("reply_phase", "\(kind) for \(pending.kind)")
++            default: throw TransportFault("reply_phase", "\(kind) for \(pending.kind)")
+             }
+         }
+         if hello { trace.record("worker_hello", ["kind": .string("worker_hello"), "worker_id": .string(id), "created_pid": .n(state.withLock { $0.pid }), "scenario": .string(scenario), "hello": value]) }
+-        if ready { readyPromise.resolve(.success(value)) }
+-        if let enter { enter.0.resolve(.success(enter.1)) }
+-        if let result { result.0.resolve(.success(result.1)) }
+-    }
+-    private func pools(_ ready: JSON) throws -> [JSON] {
+-        guard let pools = ready["pools"].array, pools.count == 28 else { throw BridgeFault("pools", "28 pools required") }; return pools
+-    }
+-    private func validateReady(_ ready: JSON) throws {
++        if ready { readyPromise.publishReserved(.success(value)) }
++        if let result { result.0.publishReserved(.success(result.1)) }
++    }
++    private func pools(_ ready: WireJSON) throws -> [WireJSON] {
++        guard let pools = ready["pools"].array, pools.count == 28 else { throw TransportFault("pools", "28 pools required") }; return pools
++    }
++    private func validateReady(_ ready: WireJSON) throws {
+         try require(ready["backend"].string == (cpu ? "stub" : "mlx") && ready["layers"].integer == 28 && ready["page_size"].integer == 128 && ready["vocab_size"].integer == 151936, "READY backend/geometry")
+         let pools = try pools(ready)
+         for (i, pool) in pools.enumerated() {
+@@ -366,37 +357,49 @@
+         }
+         try require(Set(pools.compactMap { $0["pool_object_id"].string }).count == 28, "distinct pool objects")
+     }
+-    private func validatePartition(_ layer: JSON, pool: JSON) throws {
++    private func validatePartition(_ layer: WireJSON, pool: WireJSON) throws {
+         try require(layer["layer"] == pool["layer"] && layer["pool_id"] == pool["pool_id"] && layer["pool_object_id"] == pool["pool_object_id"], "layer/pool identity")
+         guard let used = layer["used_page_ids"].array, let free = layer["free_page_ids"].array,
+-              let count = layer["num_pages"].integer, let capacity = layer["capacity"].integer, let bytes = layer["storage_nbytes"].integer else { throw BridgeFault("partition", "missing pool geometry") }
++              let count = layer["num_pages"].integer, let capacity = layer["capacity"].integer, let bytes = layer["storage_nbytes"].integer else { throw TransportFault("partition", "missing pool geometry") }
+         let u = used.compactMap(\.integer), f = free.compactMap(\.integer)
+         try require(count >= 0 && count == u.count + f.count && capacity >= count && bytes >= 0 && u.count == used.count && f.count == free.count, "pool bounds")
+         try require(Set(u).count == u.count && Set(f).count == f.count && Set(u).isDisjoint(with: Set(f)) && Set(u + f) == Set(0..<count), "exact used/free partition")
+         try require(u == u.sorted(), "used IDs sorted")
+     }
+-    private func validateLiveLayers(_ value: JSON, lease: LeaseID, count: Int, ready: JSON) throws {
+-        guard let layers = value.array, layers.count == 28 else { throw BridgeFault("layers", "28 live layers required") }
++    private func validateLiveLayers(_ value: WireJSON, count: Int, ready: WireJSON) throws {
++        guard let layers = value.array, layers.count == 28 else { throw TransportFault("layers", "28 live layers required") }
+         let pools = try pools(ready)
+         for (i, layer) in layers.enumerated() {
+             try validatePartition(layer, pool: pools[i])
+-            guard let pages = layer["cache_page_ids"].array, let owned = layer["owned_pages"].array, pages.count == 1, owned.count == 1 else { throw BridgeFault("live_pages", "one logical page per layer") }
++            guard let pages = layer["cache_page_ids"].array, let owned = layer["owned_pages"].array, pages.count == 1, owned.count == 1 else { throw TransportFault("live_pages", "one logical page per layer") }
+             try require(layer["page_lens"] == .array([.n(count)]) && layer["offset"].integer == count, "cache length/offset")
+-            try require(layer["used_page_ids"] == .array(pages) && owned[0]["page_id"] == pages[0] && owned[0]["allocation_epoch"].integer == lease.epoch, "active page/epoch")
+-        }
+-    }
+-    private func validateEmptyPools(_ value: JSON, ready: JSON) throws {
+-        guard let layers = value.array, layers.count == 28 else { throw BridgeFault("empty_pools", "28 empty pools required") }
++            try require(layer["used_page_ids"] == .array(pages) && owned[0]["page_id"] == pages[0] && (owned[0]["allocation_epoch"].integer ?? 0) > 0, "active page and positive independent allocation generation")
++        }
++    }
++    private func nextPageEpochs(_ value: WireJSON, previous: [String: [Int: Int]]) throws -> [String: [Int: Int]] {
++        var result = previous
++        for layer in value.array! {
++            let pool = layer["pool_id"].string!
++            for owned in layer["owned_pages"].array! {
++                guard let page = owned["page_id"].integer, let epoch = owned["allocation_epoch"].integer else { throw TransportFault("page_epoch", "integer page/generation") }
++                try require(epoch == (previous[pool]?[page] ?? 0) + 1, "per-pool/page next allocation generation")
++                result[pool, default: [:]][page] = epoch
++            }
++        }
++        return result
++    }
++    private func validateEmptyPools(_ value: WireJSON, ready: WireJSON) throws {
++        guard let layers = value.array, layers.count == 28 else { throw TransportFault("empty_pools", "28 empty pools required") }
+         let pools = try pools(ready)
+         for (i, layer) in layers.enumerated() {
+             try validatePartition(layer, pool: pools[i])
+             try require(layer["cache_page_ids"] == .array([]) && layer["page_lens"] == .array([]) && layer["owned_pages"] == .array([]) && layer["offset"].integer == 0 && layer["used_page_ids"] == .array([]), "empty pool cache/used")
+         }
+     }
+-    private func validateRelease(_ value: JSON, receipt: HostReceipt, ready: JSON) throws {
++    private func validateRelease(_ value: WireJSON, receipt: WireReceipt, ready: WireJSON) throws {
+         try require(value["released"].bool == true && value["receipt_id"] == receipt.raw["receipt_id"] && value["eval_seq"] == receipt.raw["seq"], "release original receipt identity")
+-        guard let layers = value["layers"].array, layers.count == 28, let original = receipt.raw["layers"].array else { throw BridgeFault("release", "full layer set missing") }
+-        var after: [JSON] = []
++        guard let layers = value["layers"].array, layers.count == 28, let original = receipt.raw["layers"].array else { throw TransportFault("release", "full layer set missing") }
++        var after: [WireJSON] = []
+         for (i, layer) in layers.enumerated() {
+             try require(layer["layer"].integer == i && layer["pool_id"] == original[i]["pool_id"] && layer["before"] == original[i] && layer["released_pages"] == original[i]["owned_pages"], "release exact original pages/epochs/before")
+             for field in ["pool_object_id", "num_pages", "capacity", "storage_nbytes"] { try require(layer["after"][field] == original[i][field], "release unchanged pool geometry \(field)") }
+@@ -404,41 +407,53 @@
+         }
+         try validateEmptyPools(.array(after), ready: ready)
+     }
+-    private func command(_ kind: String, lease: LeaseID? = nil, spec: RequestSpec? = nil, entered: Promise<JSON>? = nil, extra: [String: JSON] = [:]) async throws -> JSON {
+-        let reply = Promise<JSON>()
+-        let value: JSON = try state.withLock { s in
++    private func command(_ kind: String, lease: WireLease? = nil, spec: WireRequest? = nil, prior: WireReceipt? = nil, extra: [String: WireJSON] = [:]) async throws -> WireJSON {
++        let reply = TransportPromise<WireJSON>()
++        let value: WireJSON = try state.withLock { s in
+             if let fault = s.fault { throw fault }
+             try require(s.pending == nil && !s.processExited, "one pending command and live worker")
+             try require((kind == "EVAL" && s.phase == "ready") || (kind == "RELEASE" && s.phase == "leased") || (kind == "SHUTDOWN" && s.phase == "ready"), "command admission phase")
+-            if kind == "RELEASE" { try require(s.receipt?.lease == lease, "release current lease") }
++            var currentLease = lease
++            if kind == "EVAL" {
++                guard let spec else { throw TransportFault("request", "EVAL requires actual operation/tokens") }
++                try require(s.evalClaims < Int.max && !s.requestIDs.contains(spec.name), "fresh EVAL identity and representable wire lease")
++                s.evalClaims += 1; s.requestIDs.insert(spec.name)
++                currentLease = WireLease(session: trace.session, worker: id, request: spec.name, task: spec.task, epoch: s.evalClaims)
++            }
++            if kind == "RELEASE" { try require(s.receipt == prior && prior != nil && s.receipt?.lease == lease, "release exact validated current receipt") }
++            if kind == "SHUTDOWN" { try require(s.receipt == nil && s.evalClaims == s.completedReleases, "all actual EVAL claims fully returned; zero or any completed count allowed") }
+             var body = extra
+             body["v"] = .n(1); body["kind"] = .string(kind); body["session"] = .string(trace.session); body["worker_id"] = .string(id); body["seq"] = .n(s.nextSeq)
+-            if let lease { body["request_id"] = .string(lease.request); body["lease_epoch"] = .n(lease.epoch) }
+-            let value = JSON.object(body)
+-            s.pending = Pending(kind: kind, seq: s.nextSeq, command: value, lease: lease, spec: spec, reply: reply, entered: entered)
++            if let currentLease { body["request_id"] = .string(currentLease.request); body["lease_epoch"] = .n(currentLease.epoch) }
++            let value = WireJSON.object(body)
++            s.pending = Pending(kind: kind, seq: s.nextSeq, command: value, lease: currentLease, spec: spec, reply: reply)
+             s.nextSeq += 1; s.commands += 1; s.phase = kind.lowercased()
+             trace.record("wire.pending_registered", ["worker_id": .string(id), "command": value])
+             return value
+         }
+-        reply.deadline(deadlines.command, BridgeFault("command_timeout", "\(kind) \(lease?.request ?? "shutdown")")) { [self] in fail($0) }
++        reply.deadline(deadlines.command, TransportFault("command_timeout", "\(kind) \(spec?.name ?? lease?.request ?? "shutdown")")) { [self] in fail($0) }
+         emitWrite(value)
+         return try await reply.wait()
+     }
+-    func eval(_ lease: LeaseID, spec: RequestSpec, entered: Promise<JSON>) async throws -> HostReceipt {
+-        let raw = try await command("EVAL", lease: lease, spec: spec, entered: entered, extra: ["token_ids": .array(spec.tokens), "input_sha256": .string(spec.digest)])
+-        return HostReceipt(lease: lease, raw: raw)
+-    }
+-    func release(_ receipt: HostReceipt) async throws -> JSON {
+-        try await command("RELEASE", lease: receipt.lease, extra: ["receipt_id": receipt.raw["receipt_id"], "eval_seq": receipt.raw["seq"]])
+-    }
+-    func shutdown() async throws -> JSON {
++    func eval(_ spec: WireRequest) async throws -> WireReceipt {
++        var extra = spec.context; extra["token_ids"] = .array(spec.tokens); extra["input_sha256"] = .string(spec.digest)
++        let raw = try await command("EVAL", spec: spec, extra: extra)
++        let lease = WireLease(session: trace.session, worker: id, request: spec.name, task: spec.task, epoch: raw["lease_epoch"].integer!)
++        return WireReceipt(lease: lease, raw: raw)
++    }
++    func release(_ receipt: WireReceipt) async throws -> WireJSON {
++        var extra: [String: WireJSON] = ["receipt_id": receipt.raw["receipt_id"], "eval_seq": receipt.raw["seq"]]
++        for key in ["operation", "purpose", "source_context", "native_context"] { extra[key] = receipt.raw[key] }
++        return try await command("RELEASE", lease: receipt.lease, prior: receipt, extra: extra)
++    }
++    func shutdown() async throws -> WireJSON {
+         let ack = try await command("SHUTDOWN")
+         // EOF on command input is graceful only after the validated ACK.
+         closeInput()
+-        reapPromise.deadline(deadlines.command, BridgeFault("reap_timeout", id)) { [self] in fail($0) }
+-        stdoutDone.deadline(deadlines.command, BridgeFault("stdout_timeout", id)) { [self] in fail($0) }
+-        stderrDone.deadline(deadlines.command, BridgeFault("stderr_timeout", id)) { [self] in fail($0) }
+-        stdinDone.deadline(deadlines.command, BridgeFault("stdin_close_timeout", id)) { [self] in fail($0) }
++        reapPromise.deadline(deadlines.command, TransportFault("reap_timeout", id)) { [self] in fail($0) }
++        stdoutDone.deadline(deadlines.command, TransportFault("stdout_timeout", id)) { [self] in fail($0) }
++        stderrDone.deadline(deadlines.command, TransportFault("stderr_timeout", id)) { [self] in fail($0) }
++        stdinDone.deadline(deadlines.command, TransportFault("stdin_close_timeout", id)) { [self] in fail($0) }
+         let exit = try await reapPromise.wait(); _ = try await stdoutDone.wait(); _ = try await stderrDone.wait(); _ = try await stdinDone.wait()
+         try require(exit == 0, "normal worker exit")
+         try checkHealthy(); router.unregister(id)
+@@ -446,15 +461,26 @@
+         return ack
+     }
+     func checkHealthy() throws {
+-        let fault = state.withLock { s -> BridgeFault? in
++        let fault = state.withLock { s -> TransportFault? in
+             if let fault = s.fault { return fault }
+-            if s.processExited && (!s.shutdownACK || s.exitCode != 0) { return BridgeFault("worker_exit", "observed worker termination before successful shutdown") }
++            if s.processExited && (!s.shutdownACK || s.exitCode != 0) { return TransportFault("worker_exit", "observed worker termination before successful shutdown") }
+             return nil
+         }
+         if let fault { fail(fault); throw fault }
+     }
+-    // Lock order is Session -> Owner -> Hub -> Trace. No Owner-held operation
+-    // acquires Session. The actual admission event is atomic with session health.
++    func initializedIdentity() throws -> MLXSessionIdentity {
++        let observed = state.withLock { ($0.pid, $0.ready) }
++        guard let ready = observed.1 else { throw TransportFault("identity", "no validated READY") }
++        let pools = try pools(ready).map { row -> MLXPoolIdentity in
++            guard let layer = row["layer"].integer, let id = row["pool_id"].string, let object = row["pool_object_id"].string else { throw TransportFault("identity", "incomplete pool identity") }
++            return MLXPoolIdentity(layer: layer, poolID: id, objectID: object)
++        }
++        return try MLXSessionIdentity(session: trace.session, worker: id, pid: observed.0, pgid: Int(getpgrp()),
++            poolGroup: "\(trace.session)/\(id)/private-pools", pools: pools, provenance: ready.core)
++    }
++    // Lock order is Session -> synchronous Core commit -> TransportTrace.
++    // The closure cannot suspend or call this Session. Admission commits while
++    // the same mutex excludes command/reply/fault/process-exit state changes.
+     func withAdmission<T>(_ body: () throws -> T) throws -> T {
+         try state.withLock { s in
+             if let fault = s.fault { throw fault }
+@@ -463,21 +489,25 @@
+         }
+     }
+     private func closeInput() {
++        let first = state.withLock { s -> Bool in
++            guard !s.stdinCloseIssued else { return false }; s.stdinCloseIssued = true; return true
++        }
++        guard first else { return }
+         writeQueue.async { [self] in
+             do {
+                 try handles.input.fileHandleForWriting.close(); state.withLock { $0.stdinClosed = true }
+                 trace.record("worker.stdin_closed", ["worker_id": .string(id)]); stdinDone.resolve(.success(true))
+-            } catch { let fault = BridgeFault("stdin_close", String(describing: error)); fail(fault); stdinDone.resolve(.failure(fault)) }
+-        }
+-    }
+-    func fail(_ fault: BridgeFault) {
++            } catch { let fault = TransportFault("stdin_close", String(describing: error)); fail(fault); stdinDone.resolve(.failure(fault)) }
++        }
++    }
++    func fail(_ fault: TransportFault) {
+         let old = state.withLock { s -> (Pending?, Bool) in
+             guard s.fault == nil else { return (nil, false) }
+             s.fault = fault; s.phase = "unresolved"; return (s.pending, true)
+         }
+         guard old.1 else { return }
+         trace.record("session.unresolved", ["worker_id": .string(id), "fault": fault.json, "roots": snapshot()])
+-        readyPromise.resolve(.failure(fault)); old.0?.reply.resolve(.failure(fault)); old.0?.entered?.resolve(.failure(fault))
++        readyPromise.resolve(.failure(fault)); old.0?.reply.resolve(.failure(fault))
+         // Intentionally preserve pending command, receipt/KV obligation and IO
+         // roots. No RELEASE, reset, task cancellation or retry occurs here.
+     }
+@@ -486,30 +516,35 @@
+     // their unresolved KV root remains in snapshots after process disappearance.
+     func closeFailedCPUFixture() async {
+         precondition(cpu)
++        let closed = state.withLock { $0.processExited && $0.stdoutJoined && $0.stderrJoined && $0.stdinClosed }
++        if closed { return }
+         closeInput()
+         let pid = state.withLock { $0.pid }
+         if pid > 0 && !state.withLock({ $0.processExited }) { _ = Darwin.kill(pid_t(pid), SIGTERM) }
+-        reapPromise.deadline(1, BridgeFault("cpu_reap_timeout", id))
++        reapPromise.deadline(1, TransportFault("cpu_reap_timeout", id))
+         _ = try? await reapPromise.wait()
+         if pid > 0 && !state.withLock({ $0.processExited }) { _ = Darwin.kill(pid_t(pid), SIGKILL) }
+         // Separate fresh drain observation: the original timeout is retained.
+-        let done = Promise<Bool>()
++        let done = TransportPromise<Bool>()
+         reapQueue.async { done.resolve(.success(true)) }
+-        done.deadline(1, BridgeFault("cpu_final_reap_timeout", id)); _ = try? await done.wait()
+-        stdoutDone.deadline(1, BridgeFault("cpu_stdout_timeout", id)); stderrDone.deadline(1, BridgeFault("cpu_stderr_timeout", id))
++        done.deadline(1, TransportFault("cpu_final_reap_timeout", id)); _ = try? await done.wait()
++        stdoutDone.deadline(1, TransportFault("cpu_stdout_timeout", id)); stderrDone.deadline(1, TransportFault("cpu_stderr_timeout", id))
+         _ = try? await stdoutDone.wait(); _ = try? await stderrDone.wait()
+-        stdinDone.deadline(1, BridgeFault("cpu_stdin_close_timeout", id)); _ = try? await stdinDone.wait()
++        stdinDone.deadline(1, TransportFault("cpu_stdin_close_timeout", id)); _ = try? await stdinDone.wait()
+         router.unregister(id)
+         trace.record("cpu.failure_fixture_closed", ["worker_id": .string(id), "roots": snapshot()])
+     }
+-    func snapshot() -> JSON { state.withLock { s in .object([
++    func snapshot() -> WireJSON { state.withLock { s in .object([
+         "worker_id": .string(id), "pid": .n(s.pid), "phase": .string(s.phase), "permit_forwarded": .bool(s.permit),
+         "process_root": .bool(!s.processExited), "stdout_root": .bool(!s.stdoutJoined), "stderr_root": .bool(!s.stderrJoined), "stdin_root": .bool(!s.stdinClosed),
+         "stdout_eof": .bool(s.stdoutEOF), "stderr_eof": .bool(s.stderrEOF),
++        "stdin_close_issued": .bool(s.stdinCloseIssued),
+         "terminal_error_diagnostic": s.terminalError ?? .null, "trailing_bytes": .n(s.trailingBytes),
+         "pending_root": s.pending?.command ?? .null, "receipt_kv_root": s.receipt?.raw ?? .null,
+-        "shutdown_ack": .bool(s.shutdownACK), "actual_exit": s.exitCode.map(JSON.n) ?? .null, "fault": s.fault?.json ?? .null,
+-        "wait_status": s.waitStatus.map(JSON.n) ?? .null, "termination_signal": s.terminationSignal.map(JSON.n) ?? .null,
+-        "raw_frames": .n(s.rawFrames), "commands": .n(s.commands)
++        "shutdown_ack": .bool(s.shutdownACK), "actual_exit": s.exitCode.map(WireJSON.n) ?? .null, "fault": s.fault?.json ?? .null,
++        "wait_status": s.waitStatus.map(WireJSON.n) ?? .null, "termination_signal": s.terminationSignal.map(WireJSON.n) ?? .null,
++        "raw_frames": .n(s.rawFrames), "commands": .n(s.commands),
++        "eval_claims": .n(s.evalClaims), "completed_releases": .n(s.completedReleases),
++        "validated_receipts": .array(s.validatedReceipts.map(\.raw)), "validated_acks": .array(s.validatedACKs)
+     ]) } }
+ }
+--- /Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/worker.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/worker.py
+@@ -1,5 +1,10 @@
+ #!/usr/bin/env python3
+-"""SMWO1 single-owner worker. No MLX/reference import before LOAD_PERMIT."""
++"""CM1 single-lease MLX worker. No MLX/reference import before LOAD_PERMIT.
++
++EVAL receives actual operation/tokens; there is no A/B label lookup, predicted
++output, hidden warmup or decode. Source epochs, wire leases and page allocation
++generations have distinct domains. Native reference requests have no source ID.
++"""
+ import argparse
+ import hashlib
+ import json
+@@ -83,6 +88,7 @@
+             require(len(self.buffer.split(b'\n', 1)[0]) < LIMIT, 'input line exceeds 1 MiB')
+         raw, remainder = self.buffer.split(b'\n', 1)
+         self.buffer = bytearray(remainder)
++        require(len(raw) + 1 <= LIMIT, 'input line including LF exceeds 1 MiB')
+         return strict_object(raw.decode('utf-8'))
+ 
+ 
+@@ -187,25 +193,24 @@
+                 'worker requires actual -I -S -B startup flags')
+         self.config = strict_object(Path(args.inputs).read_text())
+         self.input_sha = file_hash(args.inputs)
+-        require(self.config.get('schema') == 'smwo1-inputs-v1', 'wrong input schema')
++        require(self.config.get('schema') == 'cm1-inputs-v1', 'wrong input schema')
+         require((self.config.get('layers'), self.config.get('page_size'), self.config.get('vocab_size'))
+                 == (28, 128, 151936), 'wrong fixed geometry')
+-        expected = ['ref-A', 'ref-B', 'N-A', 'N-B', 'D-A', 'D-B']
+-        requests = self.config.get('requests')
+-        require(type(requests) is list and len(requests) == 6, 'wrong request count')
+-        for epoch, (name, row) in enumerate(zip(expected, requests), 1):
+-            tokens = row['token_ids']
+-            require(row['request_id'] == name and integer(row['lease_epoch']) and row['lease_epoch'] == epoch and
+-                    row['role'] == name[-1], 'wrong frozen request order')
+-            require(type(tokens) is list and len(tokens) == (32 if name[-1] == 'A' else 8) and
+-                    all(integer(t) and 100 <= t <= 30000 for t in tokens), 'wrong tokens')
+-            require(token_hash(tokens) == row['input_sha256'], 'wrong token digest')
++        require(self.config.get('first_run_evaluations') == 2 and 'requests' not in self.config,
++                'CM1 first-run metadata, not a production request lookup or admission cap')
++        for key, count in [('a32', 32), ('b_prefix7', 7)]:
++            tokens = self.config.get(key)
++            require(type(tokens) is list and len(tokens) == count and
++                    all(integer(t) and 0 <= t < 151936 for t in tokens), 'wrong frozen input prefix')
+         self.backend = None
+         self.active = None
+         self.current = None
+         self.sequence = 0
+         self.events = 0
+         self.completed = 0
++        self.claimed = 0
++        self.last_lease = 0
++        self.request_ids = set()
+         self.page_epochs = {}
+         self.phase = 'bootstrap'
+ 
+@@ -215,18 +220,25 @@
+                'worker_id': self.args.worker_id, 'pid': os.getpid(), 'pgid': os.getpgrp(),
+                'event_seq': self.events, 'worker_ns': time.monotonic_ns()}
+         if self.current:
+-            obj.update({k: self.current[k] for k in ['seq', 'request_id', 'lease_epoch']
++            obj.update({k: self.current[k] for k in ['seq', 'request_id', 'lease_epoch',
++                        'operation', 'purpose', 'source_context', 'native_context']
+                         if k in self.current})
+         obj.update(fields)
+         if kind == 'READY' and self.scenario == 'wrong_session':
+             obj['session'] += '-wrong'
+         if kind == 'EVAL_RECEIPT' and self.scenario == 'wrong_seq':
+             obj['seq'] += 1
++        if kind == 'EVAL_RECEIPT' and self.scenario == 'wrong_receipt_request':
++            obj['request_id'] += '-foreign'
++        if kind == 'RELEASE_ACK' and self.scenario == 'wrong_release_epoch':
++            obj['lease_epoch'] += 1
+         if kind == 'EVAL_RECEIPT' and self.scenario == 'truncated_receipt':
+             self.transport.write(obj, truncated=True)
+             os._exit(73)
+         self.transport.write(obj)
+         if kind == 'EVAL_RECEIPT' and self.scenario == 'duplicate_receipt':
++            self.transport.write(obj)
++        if kind == 'RELEASE_ACK' and self.scenario == 'duplicate_release_ack':
+             self.transport.write(obj)
+         return obj
+ 
+@@ -270,8 +282,9 @@
+                 require(used == row['cache_page_ids'] and len(used) == 1, 'active ownership mismatch')
+                 require(row['offset'] == self.active['token_count'] and
+                         row['page_lens'] == [self.active['token_count']], 'cache token coverage')
+-                require(row['owned_pages'][0]['allocation_epoch'] == self.active['lease_epoch'],
+-                        'unexpected allocation epoch')
++                require(all(integer(item['allocation_epoch']) and item['allocation_epoch'] > 0 and
++                            item['allocation_epoch'] == self.page_epochs[(row['layer'], item['page_id'])]
++                            for item in row['owned_pages']), 'unexpected per-pool/page allocation generation')
+             else:
+                 require(not used and not row['cache_page_ids'] and not row['page_lens'] and
+                         row['offset'] == 0, 'live pages remain')
+@@ -303,24 +316,57 @@
+                 cmd.get('worker_id') == self.args.worker_id, 'command identity mismatch')
+         require(integer(cmd.get('seq')) and cmd['seq'] == self.sequence + 1, 'command sequence mismatch')
+         require(cmd.get('kind') in ['EVAL', 'RELEASE', 'SHUTDOWN'], 'unknown command')
++        base = {'v', 'kind', 'session', 'worker_id', 'seq'}
++        identity = {'request_id', 'lease_epoch', 'operation', 'purpose', 'source_context', 'native_context'}
++        fields = base if cmd['kind'] == 'SHUTDOWN' else base | identity | (
++            {'token_ids', 'input_sha256'} if cmd['kind'] == 'EVAL' else {'receipt_id', 'eval_seq'})
++        require(set(cmd) == fields, 'exact command fields required')
+         self.sequence = cmd['seq']
+         self.current = cmd
+         return cmd
+ 
+     def evaluate(self, cmd):
+-        require(self.active is None and self.completed < 6, 'EVAL while live or after fixed sequence')
+-        row = self.config['requests'][self.completed]
+-        require(all(cmd.get(k) == row[k] for k in ['request_id', 'lease_epoch', 'token_ids', 'input_sha256']),
+-                'EVAL differs from frozen request')
+-        require(integer(cmd.get('lease_epoch')) and
+-                all(integer(t) for t in cmd['token_ids']), 'non-integer request')
++        require(self.active is None, 'EVAL while a prior lease is live')
++        tokens = cmd.get('token_ids')
++        count = {'Prefill32': 32, 'Prefill8': 8}.get(cmd.get('operation'))
++        # Reject before graph construction, cache creation, or KV allocation.
++        require(count is not None and type(tokens) is list and len(tokens) == count and
++                all(integer(t) and 0 <= t < 151936 for t in tokens), 'operation/token shape or range')
++        require(cmd.get('input_sha256') == token_hash(tokens), 'actual token digest mismatch')
++        require(type(cmd.get('request_id')) is str and bool(cmd['request_id']) and
++                cmd['request_id'] not in self.request_ids, 'fresh request identity required')
++        require(integer(cmd.get('lease_epoch')) and cmd['lease_epoch'] == self.last_lease + 1,
++                'wire lease must be fresh monotonic counter')
++        if cmd.get('purpose') == 'checked-source':
++            context = cmd.get('source_context')
++            require(type(context) is dict and cmd.get('native_context') is None,
++                    'checked request context')
++            require(context.get('command') == cmd['request_id'] and context.get('operation') == cmd['operation'] and
++                    context.get('tokens') == tokens and context.get('input_sha256') == cmd['input_sha256'],
++                    'checked request echo mismatch')
++            require(all(type(context.get(k)) is str and bool(context[k]) for k in
++                        ['owner', 'source_epoch', 'scope', 'backend_return', 'job', 'task', 'invocation', 'region', 'access', 'site']),
++                    'checked source identity fields')
++            require(integer(context.get('owner_ordinal')) and context['owner_ordinal'] > 0,
++                    'source owner ordinal')
++        else:
++            context = cmd.get('native_context')
++            require(cmd.get('purpose') == 'native-reference' and cmd.get('source_context') is None and
++                    type(context) is dict and set(context) == {'request_id', 'task_id', 'purpose'} and
++                    context.get('purpose') == 'native-reference' and context.get('request_id') == cmd['request_id'] and
++                    type(context.get('task_id')) is str and bool(context['task_id']), 'native reference identity')
+         self.check_partition(self.snapshots())
++        self.claimed += 1
++        self.last_lease = cmd['lease_epoch']
++        self.request_ids.add(cmd['request_id'])
+         self.phase = 'graph'
+-        self.active = {'request_id': row['request_id'], 'lease_epoch': row['lease_epoch'],
++        self.active = {'request_id': cmd['request_id'], 'lease_epoch': cmd['lease_epoch'],
++                       'operation': cmd['operation'], 'purpose': cmd['purpose'],
++                       'source_context': cmd['source_context'], 'native_context': cmd['native_context'],
+                        'eval_seq': cmd['seq'], 'cache': self.backend.create_cache(),
+-                       'epochs': [{} for _ in range(28)], 'token_count': len(row['token_ids']),
++                       'epochs': [{} for _ in range(28)], 'token_count': len(tokens),
+                        'receipt': None}
+-        token = self.backend.build(row['token_ids'], self.active['cache'])
++        token = self.backend.build(tokens, self.active['cache'])
+         for layer, cache in enumerate(self.active['cache']):
+             for page in cache.page_ids:
+                 key = (layer, page)
+@@ -329,7 +375,7 @@
+         snapshots = self.snapshots()
+         self.check_partition(snapshots, active=True)
+         self.phase = 'eval'
+-        self.emit('EVAL_ENTER', input_sha256=row['input_sha256'], token_count=len(row['token_ids']),
++        self.emit('EVAL_ENTER', input_sha256=cmd['input_sha256'], token_count=len(tokens),
+                   layers=snapshots)
+         if self.scenario == 'eof_after_enter':
+             os._exit(72)
+@@ -346,7 +392,7 @@
+         self.check_partition(snapshots, active=True)
+         self.phase = 'sealed'
+         receipt = {'receipt_id': f'{self.args.session}/{self.args.worker_id}/eval/{cmd["seq"]}',
+-                   'input_sha256': row['input_sha256'], 'token_count': len(row['token_ids']),
++                   'input_sha256': cmd['input_sha256'], 'token_count': len(tokens),
+                    'token_id': token_id, 'eval_begin_ns': begin, 'eval_end_ns': end,
+                    'item_end_ns': item_end, 'sealed': True, 'layers': snapshots}
+         self.active['receipt'] = receipt
+@@ -357,7 +403,8 @@
+     def release(self, cmd):
+         require(self.active is not None and self.active['receipt'] is not None, 'release without sealed receipt')
+         active, receipt = self.active, self.active['receipt']
+-        require(all(cmd.get(k) == active[k] for k in ['request_id', 'lease_epoch', 'eval_seq']) and
++        require(all(cmd.get(k) == active[k] for k in ['request_id', 'lease_epoch', 'eval_seq',
++                    'operation', 'purpose', 'source_context', 'native_context']) and
+                 cmd.get('receipt_id') == receipt['receipt_id'], 'release identity mismatch')
+         require(integer(cmd.get('lease_epoch')) and integer(cmd.get('eval_seq')), 'invalid release integer')
+         before = self.snapshots()
+@@ -378,6 +425,8 @@
+             os._exit(74)
+         self.emit('RELEASE_ACK', receipt_id=receipt['receipt_id'], eval_seq=active['eval_seq'],
+                   released=True, layers=rows)
++        if self.scenario == 'nonzero_after_release_ack':
++            os._exit(76)
+ 
+     def run(self):
+         try:
+@@ -389,11 +438,12 @@
+                 elif cmd['kind'] == 'RELEASE':
+                     self.release(cmd)
+                 else:
+-                    require(self.active is None and (self.completed == 6 or self.backend.name == 'stub'),
++                    require(self.active is None and self.completed == self.claimed,
+                             'shutdown before releases complete')
+                     self.check_partition(self.snapshots())
+                     provenance = self.provenance(final=True)
+-                    self.emit('SHUTDOWN_ACK', all_released=True, pools=self.snapshots(), provenance=provenance)
++                    self.emit('SHUTDOWN_ACK', all_released=True, completed_evaluations=self.completed,
++                              pools=self.snapshots(), provenance=provenance)
+                     return 0
+         except Exception as exc:
+             active = None if self.active is None else {k: self.active[k]
+--- /Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/stub_worker.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/stub_worker.py
+@@ -80,6 +80,8 @@
+     scenario = aliases.get(args.scenario, args.scenario)
+     require(scenario in {'success', 'wrong_session', 'wrong_seq', 'duplicate_receipt',
+                          'truncated_receipt', 'eof_after_enter', 'timeout_after_enter',
+-                         'partial_release', 'lost_release_ack', 'nonzero_after_receipt', 'no_permit'},
++                         'partial_release', 'lost_release_ack', 'nonzero_after_receipt', 'no_permit',
++                         'wrong_release_epoch', 'duplicate_release_ack', 'nonzero_after_release_ack',
++                         'wrong_receipt_request'},
+             'unknown stub scenario')
+     sys.exit(Worker(args, FakeBackend, scenario).run())
+--- /Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/prepare_inputs.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/prepare_inputs.py
+@@ -1,15 +1,18 @@
+ #!/usr/bin/env python3
+-"""Freeze SMWO1 inputs using stdlib/file reads only; never import model code."""
++"""Freeze CM1 model/prefix inputs using only stdlib/file reads; never import MLX."""
+ import argparse
+ import hashlib
+ import json
+ from pathlib import Path
+-import random
+ import subprocess
+ 
+-REPO = Path(__file__).resolve().parents[2]
+ TINY = Path('/Users/fbsh/tiny-llm')
+ MODEL = Path('/Users/fbsh/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-MLX-4bit/snapshots/173234aa840d113125e9f2271100ddbaf16c9620')
++A32 = [10711, 5043, 13037, 21429, 1682, 2473, 27011, 17659,
++       3184, 12082, 19196, 2000, 29909, 16727, 7135, 1328,
++       2916, 14309, 13802, 2389, 7986, 3072, 18156, 14010,
++       2036, 27194, 18628, 4156, 7415, 20764, 20659, 19203]
++B_PREFIX7 = [2127, 19010, 19287, 13098, 1724, 7344, 1626]
+ 
+ 
+ def digest_file(path):
+@@ -43,12 +46,15 @@
+     p.add_argument('--tiny-root', type=Path, default=TINY)
+     p.add_argument('--model', type=Path, default=MODEL)
+     p.add_argument('--python', type=Path, default=TINY / '.venv/bin/python')
++    p.add_argument('--toolchain-observation', type=Path, required=True)
+     args = p.parse_args()
+-    for path in [args.output, args.tiny_root, args.model, args.python]:
++    for path in [args.output, args.tiny_root, args.model, args.python, args.toolchain_observation]:
+         if not path.is_absolute():
+             p.error('all paths must be absolute')
+     if args.output.exists():
+         p.error('output already exists')
++    if args.tiny_root != TINY or args.model != MODEL or args.python != TINY / '.venv/bin/python':
++        p.error('CM1 binds the existing fixed tiny-llm/model/venv paths')
+     model_config = json.loads((args.model / 'config.json').read_text())
+     if (model_config.get('num_hidden_layers'), model_config.get('vocab_size')) != (28, 151936):
+         raise ValueError('unexpected model geometry')
+@@ -97,23 +103,21 @@
+         for f in (site / package).rglob('*'):
+             if f.is_file() and '__pycache__' not in f.parts and f.suffix != '.pyc':
+                 files.add(f)
+-    tool_obs = REPO / 'results/swift-mlx-wait-owner-smwo1/preparation/toolchain-observation.json'
++    # Explicit dependency: relocation never guesses a repository from parents.
++    tool_obs = args.toolchain_observation
+     files.add(tool_obs)
+     files.add(Path('/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc'))
+     inputs = [pin(f) for f in sorted(files) if '__pycache__' not in f.parts]
+-    rng = random.Random(7)
+-    a = [rng.randint(100, 30000) for _ in range(32)]
+-    b = [rng.randint(100, 30000) for _ in range(8)]
+-    requests = []
+-    for epoch, name in enumerate(['ref-A', 'ref-B', 'N-A', 'N-B', 'D-A', 'D-B'], 1):
+-        role = name[-1]
+-        tokens = a if role == 'A' else b
+-        requests.append({'request_id': name, 'role': role, 'lease_epoch': epoch,
+-                         'token_ids': tokens, 'input_sha256': tokens_digest(tokens)})
+-    data = {'schema': 'smwo1-inputs-v1', 'tiny_root': str(args.tiny_root),
++    data = {'schema': 'cm1-inputs-v1', 'tiny_root': str(args.tiny_root),
+             'model': str(args.model), 'python': str(args.python), 'site_packages': str(site),
+             'model_snapshot': args.model.name, 'layers': 28, 'page_size': 128,
+-            'vocab_size': 151936, 'seed': 7, 'requests': requests,
++            'vocab_size': 151936, 'seed': 7, 'first_run_evaluations': 2,
++            'a32': A32, 'b_prefix7': B_PREFIX7,
++            'b_last_token_rule': 'this-session-actual-A-result',
++            'fixed_prefix_origin': {
++                'path': '/Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/preparation/inputs.json',
++                'bytes': 229671, 'sha256': '6a3acfd73a705a690fa2d7ab5c04ad3a8fd0763ff2cfb637403f318ee360935a',
++                'selection': 'ref-A token_ids and first seven ref-B token_ids; no old B eighth token'},
+             'external_inputs': inputs, 'package_versions': versions,
+             'git': {'head': git(args.tiny_root, 'rev-parse', 'HEAD').strip(),
+                     'status_porcelain': git(args.tiny_root, 'status', '--porcelain')},
+@@ -122,7 +126,7 @@
+     with args.output.open('x') as stream:
+         json.dump(data, stream, ensure_ascii=False, indent=2, allow_nan=False)
+         stream.write('\n')
+-    print(json.dumps({'output': pin(args.output), 'requests': len(requests),
++    print(json.dumps({'output': pin(args.output), 'fixed_a_tokens': len(A32), 'fixed_b_prefix_tokens': len(B_PREFIX7),
+                       'external_inputs': len(inputs)}))
+ 
+ 
+--- /Users/fbsh/response-lab/results/swift-mlx-wait-owner-smwo1/source-freeze-v2/source/run_session.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/backend/run_session.py
+@@ -57,6 +57,7 @@
+ 
+ class SessionRun:
+     def __init__(self, args):
++        self.start = time.monotonic()
+         self.args = args
+         self.session = str(uuid.uuid4())
+         self.output = Path(args.output_dir)
+@@ -80,11 +81,14 @@
+         self.exit_seen = False
+         self.interrupted = None
+         self.input_sha = digest(args.inputs)
+-        self.start = time.monotonic()
+-        self.command = [args.swift, '--worker-python', args.worker_python,
+-                        '--worker-script', args.worker_script, '--inputs', args.inputs,
+-                        '--session', self.session, '--pgid', '0', '--mode', args.mode,
++        self.work_deadline = self.start + args.timeout
++        self.cleanup_started = None
++        self.total_deadline = self.start + (90 if args.mode == 'cpu' else 210)
++        self.command = [args.swift, '--inputs', args.inputs,
++                        '--session', self.session, '--pgid', '0',
+                         '--output-dir', str(self.output)]
++        if args.mode == 'checked':
++            self.command += ['--source', args.source]
+ 
+     def event(self, kind, **data):
+         row = {'kind': kind, 'monotonic_ns': time.monotonic_ns(), 'session': self.session, **data}
+@@ -97,7 +101,7 @@
+         return rows
+ 
+     def permit_health(self):
+-        if time.monotonic() - self.start >= self.args.timeout:
++        if time.monotonic() >= self.work_deadline:
+             self.timed_out = True
+         require(self.phase == 'running' and self.interrupted is None and not self.timed_out,
+                 'permit blocked by observed stop/signal/session deadline')
+@@ -107,7 +111,7 @@
+         sent, deadline = 0, time.monotonic() + 1
+         while sent < len(line):
+             self.permit_health()
+-            remaining = min(deadline, self.start + self.args.timeout) - time.monotonic()
++            remaining = min(deadline, self.work_deadline) - time.monotonic()
+             require(remaining > 0, 'permit write deadline')
+             writable = select.select([], [self.process.stdin.fileno()], [], remaining)[1]
+             self.permit_health()  # Recheck after the potentially blocking OS wait, before each write.
+@@ -144,13 +148,13 @@
+                 hello.get('pid') == pid and hello.get('swift_pid') == self.process.pid and
+                 hello.get('pgid') == self.process.pid and type(hello.get('event_seq')) is int and hello.get('event_seq') == 1 and
+                 hello.get('inputs_sha256') == self.input_sha, 'HELLO binding mismatch')
+-        expected_backend = 'mlx' if self.args.mode == 'gpu' else 'stub'
++        expected_backend = 'stub' if self.args.mode == 'cpu' else 'mlx'
+         require(hello.get('backend') == expected_backend, 'wrong backend for session mode')
+         flags = hello.get('python_flags')
+         require(type(flags) is dict and set(flags) == {'isolated', 'no_site', 'dont_write_bytecode'} and
+                 all(type(value) is int and value == 1 for value in flags.values()),
+                 'worker did not start under -I -S -B')
+-        require(self.args.mode != 'gpu' or not self.seen_workers, 'GPU session may have only one worker')
++        require(self.args.mode == 'cpu' or not self.seen_workers, 'real session may have only one worker')
+         observed = [r for r in processes() if r['pid'] == pid]
+         require(len(observed) == 1 and observed[0]['ppid'] == self.process.pid and
+                 observed[0]['pgid'] == self.process.pid and os.getpgid(pid) == self.process.pid,
+@@ -163,7 +167,7 @@
+             require(self.args.mode == 'cpu', 'no_permit is CPU-only')
+             self.event('permit_withheld_cpu', worker_id=wid, pid=pid)
+             return
+-        require(self.args.mode != 'gpu' or scenario == 'success', 'GPU stub scenario forbidden')
++        require(self.args.mode == 'cpu' or scenario == 'success', 'real worker stub scenario forbidden')
+         permit = {'v': 1, 'kind': 'LOAD_PERMIT', 'session': self.session, 'worker_id': wid,
+                   'pid': pid, 'pgid': self.process.pid, 'swift_pid': self.process.pid,
+                   'permit_id': str(uuid.uuid4()), 'inputs_sha256': self.input_sha}
+@@ -205,14 +209,17 @@
+         self.event('failure', reason=reason)
+         if self.phase == 'running':
+             self.phase = 'term'
++            self.cleanup_started = time.monotonic()
+             self.signal_group(signal.SIGTERM)
+-            self.stop_deadline = time.monotonic() + 5
++            self.stop_deadline = min(self.cleanup_started + 5, self.work_deadline + 5, self.total_deadline - 10)
+ 
+     def run(self):
+-        started = {'schema': 'smwo1-session-start-v1', 'session': self.session,
++        started = {'schema': 'cm1-session-start-v1', 'session': self.session, 'mode': self.args.mode,
+                    'started_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    'command': self.command, 'cwd': str(Path.cwd()),
+-                   'timeout_seconds': self.args.timeout, 'inputs_sha256': self.input_sha}
++                   'timeout_seconds': self.args.timeout, 'inputs_sha256': self.input_sha,
++                   'total_budget_seconds': 90 if self.args.mode == 'cpu' else 210,
++                   'work_deadline_origin': 'one wrapper monotonic start', 'report_reserve_seconds': 5}
+         (self.output / 'started.json').write_text(json.dumps(started, indent=2) + '\n')
+         previous_handlers = {}
+         def interrupted(signum, _frame):
+@@ -233,13 +240,13 @@
+                 now = time.monotonic()
+                 if self.phase == 'running' and self.interrupted is not None:
+                     self.stop(f'wrapper_received_signal_{self.interrupted}')
+-                if self.phase == 'running' and now - self.start >= self.args.timeout:
++                if self.phase == 'running' and now >= self.work_deadline:
+                     self.timed_out = True
+                     self.stop('outer_timeout')
+                 if self.phase == 'term' and now >= self.stop_deadline:
+                     self.signal_group(signal.SIGKILL)
+                     self.phase = 'kill'
+-                    self.stop_deadline = time.monotonic() + 5
++                    self.stop_deadline = min(self.cleanup_started + 10, self.work_deadline + 10, self.total_deadline - 5)
+                 if self.phase == 'kill' and now >= self.stop_deadline:
+                     self.event('post_kill_observation_deadline')
+                     break
+@@ -277,8 +284,9 @@
+             self.phase = 'exception'  # No further bootstrap permits during cleanup.
+             if self.process is not None and previous_phase == 'running':
+                 # Startup/outer exceptions use the same bounded group cleanup.
++                self.cleanup_started = time.monotonic()
+                 self.signal_group(signal.SIGTERM)
+-                deadline = time.monotonic() + 5
++                deadline = min(self.cleanup_started + 5, self.work_deadline + 5, self.total_deadline - 10)
+                 while time.monotonic() < deadline:
+                     try:
+                         self.drain(0.05)
+@@ -292,7 +300,7 @@
+                     remains = True
+                 if remains or self.process.poll() is None:
+                     self.signal_group(signal.SIGKILL)
+-                    deadline = time.monotonic() + 5
++                    deadline = min(self.cleanup_started + 10, self.work_deadline + 10, self.total_deadline - 5)
+                     while time.monotonic() < deadline:
+                         try:
+                             self.drain(0.05)
+@@ -323,7 +331,7 @@
+         for path in sorted(self.output.iterdir()):
+             if path.is_file():
+                 files[path.name] = {'bytes': path.stat().st_size, 'sha256': digest(path)}
+-        record = {**started, 'schema': 'smwo1-session-run-v1', 'returncode': code,
++        record = {**started, 'schema': 'cm1-session-run-v1', 'returncode': code,
+                   'wrapper_returncode': status, 'timed_out': self.timed_out,
+                   'interrupted_signal': self.interrupted,
+                   'elapsed_seconds': time.monotonic() - self.start, 'failures': self.failures,
+@@ -337,15 +345,18 @@
+ 
+ def main():
+     p = argparse.ArgumentParser(description=__doc__)
+-    for option in ['swift', 'worker-python', 'worker-script', 'inputs', 'output-dir']:
++    for option in ['swift', 'inputs', 'output-dir']:
+         p.add_argument('--' + option, required=True)
+-    p.add_argument('--mode', choices=['gpu', 'cpu'], required=True)
++    p.add_argument('--mode', choices=['checked', 'reference', 'cpu'], required=True)
++    p.add_argument('--source')
+     p.add_argument('--timeout', type=float)
+     args = p.parse_args()
+-    maximum = 210 if args.mode == 'gpu' else 60
++    # Work + bounded TERM/KILL observations fit the fixed outer 210/90 budget.
++    maximum = 75 if args.mode == 'cpu' else 195
+     args.timeout = maximum if args.timeout is None else args.timeout
+     require(0 < args.timeout <= maximum, 'timeout must not extend plan budget')
+-    for name in ['swift', 'worker_python', 'worker_script', 'inputs', 'output_dir']:
++    require((args.source is not None) == (args.mode == 'checked'), 'source belongs only to checked entry')
++    for name in ['swift', 'inputs', 'output_dir'] + (['source'] if args.source is not None else []):
+         require(Path(getattr(args, name)).is_absolute(), 'all paths must be absolute')
+     return SessionRun(args).run()
+ 

@@ -1,0 +1,103 @@
+{
+  "schema": "src1b-parent-decoder-controls-origin-v1",
+  "at_utc": "2026-11-01T03:00:04.562508+00:00",
+  "author": "/root/src1_decoder_review",
+  "state": "S1 stable source only; stopped editing pending independent review",
+  "source_scope": [
+    "New synchronous SRC1BDecoderCPU executable source, RuntimeCore dependency only.",
+    "New standalone pure input preparer and its exact future actual-export interface.",
+    "No modification to existing frontend/oracle/Program/Package/Core/host; root owns Package registration and bounded runners."
+  ],
+  "derivation": {
+    "swift": "Derived observation/pinning/persist-before-assert pattern from existing SRC1DecoderCPU; all new population/configuration/input-provenance predicates shown in exact diff.",
+    "python": "New module; loads only fixed pure parent fixture and original 15-case oracle. Wire-difference representation follows existing decoder-control convention; does not implement replacement mutation semantics.",
+    "unchanged_before_sources": [
+      {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/Sources/SRC1DecoderCPU/Main.swift",
+        "bytes": 14748,
+        "sha256": "979726451b109cfbea507de148e1403decf3d97d9fbfaa56149a7a5e6a504f79"
+      },
+      {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/parent_decoder_mutations.py",
+        "bytes": 6539,
+        "sha256": "90dd52dae21c9383ea23638a8d0cea777fe3c5a6d2917b09ef04325ecaad01d5"
+      },
+      {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/frontend/parent_fixture.py",
+        "bytes": 2869,
+        "sha256": "7003a59b29f8ee326181ee8eacd3b0212330522b453deade87947c63481436b8"
+      }
+    ],
+    "preserved_before_bytes": [
+      {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/source-revisions/src1b-decoder-author-v1/SRC1DecoderCPU-Main.swift",
+        "bytes": 14748,
+        "sha256": "979726451b109cfbea507de148e1403decf3d97d9fbfaa56149a7a5e6a504f79"
+      },
+      {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/source-revisions/src1b-decoder-author-v1/parent_decoder_mutations.py",
+        "bytes": 6539,
+        "sha256": "90dd52dae21c9383ea23638a8d0cea777fe3c5a6d2917b09ef04325ecaad01d5"
+      },
+      {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/source-revisions/src1b-decoder-author-v1/parent_fixture.py",
+        "bytes": 2869,
+        "sha256": "7003a59b29f8ee326181ee8eacd3b0212330522b453deade87947c63481436b8"
+      }
+    ]
+  },
+  "new_files": [
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/Sources/SRC1BDecoderCPU/Main.swift",
+      "bytes": 23225,
+      "sha256": "83599804d5427626b5e55acd64dbc48d16b81c8f1fefcc93efc15f962f408219"
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/decoder-controls/parent_decoder_inputs_v1.py",
+      "bytes": 17012,
+      "sha256": "aad5f49c7b58900abc313cf1f9b4f7a17561af976fdd4530b4701f28eead52f4"
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/decoder-controls/PARENT-DECODER-INTERFACE-v1.md",
+      "bytes": 8795,
+      "sha256": "5bcebd146ee04b49c406160d25bc9ca8fc2b01495e2a9dcdc5b9a76822342256"
+    }
+  ],
+  "exact_diff": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/decoder-controls/parent-decoder-exact.diff",
+    "bytes": 64820,
+    "sha256": "c786920305cf64e514f5fe2c2d4f7ff13f7a903de67b42ef3462991053f7a826"
+  },
+  "author_static_readback": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/source-revisions/src1b-decoder-author-v1/author-static-readback.json",
+    "bytes": 2702,
+    "sha256": "5a19b57b01692eae0d9df3b7186d268d648e65fd226d7039f4f90ca957039208"
+  },
+  "independent_frontend_semantic_review": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/review/FRONTEND-PROGRAM-SOURCE-REVIEW-v1.json",
+    "bytes": 20606,
+    "sha256": "8f4bc423e453c50a2c5ec8af143e3d2674db9f7bb349c8208ee9949caebbf02f"
+  },
+  "required_next_steps": [
+    "Independent review of both new source files, full fixed diagnostics, exact wire diffs and all run/tool/source pins.",
+    "Root adds product src1b-decoder-cpu and target SRC1BDecoderCPU (RuntimeCore only), completes whole-runtime review/freeze/build as separately scheduled.",
+    "Separately source-reviewed bounded runners freeze sources preparation, four fixed actual exports, mutations and 20-observation executable.",
+    "Each first failure preserved; stop dependent steps; no automatic rerun or replacement of original ready bytes."
+  ],
+  "not_executed": {
+    "python_helper": true,
+    "pure_builder": true,
+    "mutation_constructor": true,
+    "frontend_export": true,
+    "swift_compilation": true,
+    "decoder_harness": true,
+    "runtime_or_model": true
+  },
+  "limits": [
+    "20 observations = 1 parent golden + 4 configuration negatives + original 15 decoder negatives, not 20 mutations.",
+    "Five configuration calls require five actual successful decodes first, one passing parent config and four exact configuration ProtocolErrors.",
+    "No FileHandle tokenizer lookup, task/response/HostClose or B ten-scenario completion claim.",
+    "Program basis pins source identity; final executable identity and linked full Core source require independent root build evidence.",
+    "Actual tool JSON authenticity remains tied to root original tool records and independent actual review, not established merely by record schema."
+  ]
+}

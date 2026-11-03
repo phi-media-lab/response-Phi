@@ -1,0 +1,41 @@
+{
+  "schema": "src1-decoder-author-source-delivery-v1",
+  "status": "source-only-not-compiled-or-executed",
+  "files": [
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/decoder-controls/source_response_mutations.py",
+      "bytes": 27286,
+      "sha256": "ff639209f326ec36e11bf7b38b702deca1dd04c9d24879509f4fb74e03ab22b6",
+      "ast_parse_only": true
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/decoder-controls/build_offer_only_source.py",
+      "bytes": 2200,
+      "sha256": "2f664be4d968285d89386e29be26f5309ecb22c96b723c2806af0b12ebdfce38",
+      "ast_parse_only": true
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/Sources/SRC1DecoderCPU/Main.swift",
+      "bytes": 14748,
+      "sha256": "979726451b109cfbea507de148e1403decf3d97d9fbfaa56149a7a5e6a504f79",
+      "ast_parse_only": false
+    },
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/decoder-controls/AUTHOR-NOTES.md",
+      "bytes": 7789,
+      "sha256": "f7e53b0179760e3e56ed942795f3f734dd2d25788d1aca76194688b77be549c9",
+      "ast_parse_only": false
+    }
+  ],
+  "fixed_negative_cases": 49,
+  "fixed_total_observations": 53,
+  "candidate_or_generator_imported": false,
+  "swift_compiled": false,
+  "decoder_executed": false,
+  "validation": "Python ast.parse only; Swift source read only. Original ready exchanges must be produced later by root.",
+  "source_basis": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/Sources/RuntimeCore/Program.swift",
+    "bytes": 51129,
+    "sha256": "404f725c0a5b25d541ff07dc138cc1cd43120bd4bd9128eaeb5fb36228ca46b0"
+  }
+}

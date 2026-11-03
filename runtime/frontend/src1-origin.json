@@ -1,0 +1,132 @@
+{
+  "schema": "src1-a-frontend-source-preparation-v1",
+  "status": "source-only-not-executed",
+  "modified_files": [
+    {
+      "relative_path": "p8static/parser.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8static/parser.py",
+        "bytes": 10633,
+        "sha256": "3921f71b02ac7004563e99b435fb6aa033542f01296f51b6d6bdc3b6225cbd11"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8static/parser.py",
+        "bytes": 10663,
+        "sha256": "435216c123fa67a45987e7db953de747eaa77c462139433acc5db6aa7e926486"
+      }
+    },
+    {
+      "relative_path": "p8foundation/resolve.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8foundation/resolve.py",
+        "bytes": 12700,
+        "sha256": "677102f2e98a239e4260ce053947b6e9f673726f71f36b1edc7f8b44961b2b2f"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8foundation/resolve.py",
+        "bytes": 12736,
+        "sha256": "179955dbd740d57fb7e730e28582276f84daa42e8166d8884be454d6e0c9fb34"
+      }
+    },
+    {
+      "relative_path": "p8source/source_schema.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8source/source_schema.py",
+        "bytes": 8041,
+        "sha256": "20cdd630446a7b84833144511bfe36e53979bf72a70659d2730c370237659680"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8source/source_schema.py",
+        "bytes": 8156,
+        "sha256": "1923bb85204841349077630a0d605d9e25e8ec22e398ba122f00c6ff750a139f"
+      }
+    },
+    {
+      "relative_path": "p8source/sigma.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8source/sigma.py",
+        "bytes": 3170,
+        "sha256": "6e325b38954728cb512dd7fda0ddbfc9cf5e2f8b0f9f8a7553440469e6b1f9a5"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8source/sigma.py",
+        "bytes": 4327,
+        "sha256": "c688c35ae79147ae9cd8f2868b58269247372e801c8adaa3c259a6a45364880a"
+      }
+    },
+    {
+      "relative_path": "p8source/execution.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8source/execution.py",
+        "bytes": 15858,
+        "sha256": "fca4094adffa943c64587f2a057c11f174a4797c05dd27682cf5d2a4e095632f"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8source/execution.py",
+        "bytes": 15856,
+        "sha256": "51a38d6bfc34655d894b90bd2c2470cc85ff7de57ee51f8e6992cc0e5927b63a"
+      }
+    },
+    {
+      "relative_path": "p8source/body.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8source/body.py",
+        "bytes": 56505,
+        "sha256": "876db426ef2e9d8500a4329e0ccb4965751f6a1a71ca5a7d4bbec39ea4568146"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8source/body.py",
+        "bytes": 58483,
+        "sha256": "91312bb7f84b43b0d132a13b2a97f707b4cea2a49b7960060ed0123aefca569b"
+      }
+    },
+    {
+      "relative_path": "p8source/inference.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/p8source/inference.py",
+        "bytes": 26060,
+        "sha256": "670816c42ac7b7f04e5c136d304b02033f3b53b3a6fe1b39b2b8c60a9455b317"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/p8source/inference.py",
+        "bytes": 26874,
+        "sha256": "da5004cb34711fb30a1348d1ab6f22f2e6a421c78a23c5daa9f589c54a6e960b"
+      }
+    },
+    {
+      "relative_path": "test_external_request.py",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/joined-result-delivery-jrd1/source-first-v1/runtime/frontend/test_external_request.py",
+        "bytes": 11708,
+        "sha256": "2d31231cbd8f1db636d6b80f7e232e4f06db6c67839ba4b52fe44c170c9e26d5"
+      },
+      "candidate": {
+        "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/test_external_request.py",
+        "bytes": 11706,
+        "sha256": "dc16dc270de0aa37c7b9b5999bd3b64f7372320ca6b2fc4bc5da56a4b10d8d3d"
+      }
+    }
+  ],
+  "new_files": [
+    {
+      "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/runtime/frontend/test_response_offer.py",
+      "bytes": 17689,
+      "sha256": "d5560b7e30efd88096b62a057410d5c73953601747d171b640347d654bb7f617"
+    }
+  ],
+  "interface": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-contract-v1/FRONTEND-INTERFACE.md",
+    "bytes": 7500,
+    "sha256": "cb142d71f3bcde65c1c6b6bba9bfdefae73598c700dcd67f5b99ca312095755e"
+  },
+  "test_method_counts": {
+    "inherited_external_request": 21,
+    "new_response_offer": 29
+  },
+  "validation": "Python ast.parse only; no import, checker, test, compiler, worker, model or GPU execution.",
+  "candidate_first_run_owned_by": "root",
+  "commands_not_executed": [
+    "python3 -I -S -B runtime/frontend/test_response_offer.py",
+    "python3 -I -S -B runtime/frontend/test_external_request.py"
+  ]
+}

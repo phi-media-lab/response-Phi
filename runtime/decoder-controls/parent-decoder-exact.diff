@@ -1,0 +1,870 @@
+--- /Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/source-revisions/src1b-decoder-author-v1/SRC1DecoderCPU-Main.swift
++++ /Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/Sources/SRC1BDecoderCPU/Main.swift
+@@ -3,218 +3,283 @@
+ import Darwin
+ import RuntimeCore
+ 
+-// Synchronous production-decoder observations only. No Task, Ledger, compiler
+-// child, transport, worker or model is created. Root supplies actual exports.
+-private struct ProbeFailure: Error { let message:String }
+-private func require(_ condition:Bool,_ message:String)throws {
+-    if !condition {throw ProbeFailure(message:message)}
+-}
+-private func sha(_ data:Data)->String {SHA256.hash(data:data).map{String(format:"%02x",$0)}.joined()}
+-private func expectedDiagnostic(_ message:String)->JSONValue {
+-    .object(["phase":.string("protocol"),"code":.string("invalid-compiler-exchange"),
+-             "path":.array([]),"message":.string(message)])
+-}
+-private func pin(_ path:URL,_ data:Data)->JSONValue {
+-    .object(["path":.string(path.path),"bytes":.integer(data.count),"sha256":.string(sha(data))])
+-}
+-private func save(_ value:JSONValue,_ path:URL)throws {try value.encoded().write(to:path,options:.withoutOverwriting)}
+-private func parsed(_ data:Data)throws->JSONValue {
+-    try ExactJSON.decode(data,limits:.init(bytes:64*1024*1024,depth:256,values:2_000_000,stringBytes:2*1024*1024))
+-}
+-
+-private let contractKeys=["id","port","registry_name","command","payload_type","result_type",
+-                          "caller","owner_authority","submission","commit"]
+-private let fixedCases:[(String,String)] = {
+-    var rows:[(String,String)]=[
+-        ("P01-profile","program version"),
+-        ("P02-sigma-id","fixed Sigma implementations"),
+-        ("P03-sigma-abi","fixed Sigma implementations"),
+-        ("P04-operation-name","fixed Sigma implementations"),
+-        ("P05-operation-kind","fixed Sigma implementations"),
+-        ("P06-operation-implementation","fixed Sigma implementations")]
+-    for (i,key) in contractKeys.enumerated() {
+-        rows.append((String(format:"C%02d-contract-%@",i+1,key),"fixed Sigma implementations"))
+-    }
+-    rows += [
+-        ("S01-port","fixed host-response port"),
+-        ("S02-extra-field","object fields do not match schema"),
+-        ("S03-missing-owner","object fields do not match schema"),
+-        ("S04-missing-token","object fields do not match schema"),
+-        ("A01-result-Word","host response result Unit contract"),
+-        ("A02-token-Unit","host response token Word contract"),
+-        ("A03-owner-Word","host response Owner contract"),
+-        ("A04-owner-missing-owner","host response Owner identity"),
+-        ("A05-owner-missing-size","host response Owner identity"),
+-        ("A06-owner-nominal-index","host response Owner nominal sort/source"),
+-        ("A07-owner-null","host response Owner nominal form"),
+-        ("A08-owner-wrong-sort","host response Owner nominal sort/source"),
+-        ("A09-size-null","host response Size nominal form"),
+-        ("A10-size-wrong-sort","host response Size nominal sort/source"),
+-        ("A11-size-negative-literal","host response Size literal nonnegative"),
+-        ("A12-owner-binding-mismatch","host response Owner complete binding correspondence"),
+-        ("E01-effect-tag","host response effect set"),
+-        ("E02-effect-family","host response effect set"),
+-        ("E03-effect-extra-field","host response effect atoms"),
+-        ("E04-effect-arity","host response exact effect arity"),
+-        ("E05-response-atom-missing","host response and Raise effects"),
+-        ("E06-raise-atom-missing","host response and Raise effects"),
+-        ("E07-response-extra-field","host response effect fields"),
+-        ("E08-raise-extra-field","host response effect fields"),
+-        ("E09-atom-family","host response effect fields"),
+-        ("E10-effect-owner-nominal-index","host response effect Owner correspondence"),
+-        ("T01-missing-owner-annotation","missing AST annotation"),
+-        ("T02-missing-token-annotation","missing AST annotation"),
+-        ("T03-node-kind","AST/annotation kind"),
+-        ("T04-child-order","exact source occurrence order"),
+-        ("T05-site-hash","site source identity"),
+-        ("T06-duplicate-site","duplicate source site"),
+-        ("B01-owner-direct-usage","host response Owner lexical binding")]
+-    return rows
+-}()
++// Synchronous observations of the production decoder/configuration APIs only.
++// No compiler child, Task, Ledger, transport, FileHandle tool lookup or model.
++private struct ProbeFailure: Error { let message: String }
++private func require(_ condition: Bool, _ message: String) throws {
++    if !condition { throw ProbeFailure(message: message) }
++}
++private func sha(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
++private func pin(_ url: URL, _ data: Data) -> JSONValue {
++    .object(["path": .string(url.path), "bytes": .integer(data.count), "sha256": .string(sha(data))])
++}
++private func diagnostic(_ message: String) -> JSONValue {
++    .object(["phase": .string("protocol"), "code": .string("invalid-compiler-exchange"),
++             "path": .array([]), "message": .string(message)])
++}
++private func parsed(_ data: Data) throws -> JSONValue {
++    try ExactJSON.decode(data, limits: .init(bytes: 64 * 1024 * 1024, depth: 256, values: 2_000_000, stringBytes: 2 * 1024 * 1024))
++}
++private func save(_ value: JSONValue, _ url: URL) throws { try value.encoded().write(to: url, options: .withoutOverwriting) }
++private func numeric(_ value: JSONValue) throws -> Double {
++    guard case .number(let token) = value, let number = Double(token), number.isFinite else {
++        throw ProbeFailure(message: "finite number required")
++    }
++    return number
++}
++private let python = "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14"
++private let fixedCases: [(String, String)] = [
++    ("unknown-profile", "program version"),
++    ("wrong-sigma-id", "fixed Sigma implementations"),
++    ("source-bytes-hash", "exact source bytes"),
++    ("service-result-unit", "parent fieldless Word contract"),
++    ("service-tokens-seven", "parent complete Pair contract"),
++    ("tool-argument-nat", "parent fieldless Word contract"),
++    ("tool-result-word-length", "parent fieldless Nat contract"),
++    ("scope-kind", "parent plain Scope kind"),
++    ("scope-identity", "parent current scope nominal correspondence"),
++    ("service-effect-literal", "parent HostService fixed literal"),
++    ("service-effect-scope", "parent current scope nominal correspondence"),
++    ("tool-capability", "parent LocalRead fixed literal"),
++    ("missing-raise", "parent exact effect arity"),
++    ("extra-effect", "parent exact effect arity"),
++    ("command-direct-copy", "source-directed direct usage")
++]
++private let exchangeIDs = ["parent-golden", "parent-empty", "parent-service-only", "child-empty"]
++private let sourceIDs = ["golden", "empty", "service-only", "empty"]
++private let budgets: JSONValue = .object(["outer": .integer(60), "work": .integer(58),
++    "term": .integer(1), "kill_reap": .number("0.5"), "report_reserve": .number("0.5")])
++
++private func wireDifferences(_ left: JSONValue, _ right: JSONValue, path: [String] = []) -> [JSONValue] {
++    if left == right { return [] }
++    func row(_ old: JSONValue?, _ new: JSONValue?, _ components: [String]) -> JSONValue {
++        let pointer = "/" + components.map { $0.replacingOccurrences(of: "~", with: "~0").replacingOccurrences(of: "/", with: "~1") }.joined(separator: "/")
++        return .object(["pointer": .string(pointer), "old_present": .bool(old != nil), "new_present": .bool(new != nil),
++                        "old": old ?? .null, "new": new ?? .null])
++    }
++    switch (left, right) {
++    case (.object(let a), .object(let b)):
++        return Set(a.keys).union(b.keys).sorted().flatMap { key -> [JSONValue] in
++            if let old = a[key], let new = b[key] { return wireDifferences(old, new, path: path + [key]) }
++            return [row(a[key], b[key], path + [key])]
++        }
++    case (.array(let a), .array(let b)):
++        return (0..<max(a.count, b.count)).flatMap { index -> [JSONValue] in
++            if index < a.count && index < b.count { return wireDifferences(a[index], b[index], path: path + [String(index)]) }
++            return [row(index < a.count ? a[index] : nil, index < b.count ? b[index] : nil, path + [String(index)])]
++        }
++    default: return [row(left, right, path)]
++    }
++}
+ 
+ private final class Probe {
+-    let output:URL
+-    var files:[String:JSONValue]=[:]
+-    var observations:[JSONValue]=[]
+-    var decodeCalls=0,configurationCalls=0
+-    var current="input-preflight"
+-    init(output:URL) {self.output=output}
+-
+-    func observedRead(_ url:URL)throws->Data {
+-        let data=try Data(contentsOf:url)
+-        let identity=pin(url,data)
+-        if let previous=files[url.path] {try require(previous==identity,"input changed: "+url.path)}
+-        files[url.path]=identity;return data
+-    }
+-    func pinnedRead(_ identity:JSONValue)throws->Data {
+-        _=try identity.members(exactly:["path","bytes","sha256"])
+-        let path=try identity.field("path").text()
+-        try require(path.hasPrefix("/"),"absolute pinned path")
+-        let url=URL(fileURLWithPath:path);let data=try observedRead(url)
+-        try require(pin(url,data)==identity,"exact input pin: "+path);return data
+-    }
+-    func recheckFiles()throws {
++    let output: URL
++    var files: [String: JSONValue] = [:]
++    var observations: [JSONValue] = []
++    var decodeCalls = 0, configurationCalls = 0
++    var current = "input-preflight"
++    init(output: URL) { self.output = output }
++
++    func observedRead(_ url: URL) throws -> Data {
++        let data = try Data(contentsOf: url), identity = pin(url, data)
++        if let previous = files[url.path] { try require(previous == identity, "input changed: " + url.path) }
++        files[url.path] = identity
++        return data
++    }
++    func pinnedRead(_ identity: JSONValue) throws -> Data {
++        _ = try identity.members(exactly: ["path", "bytes", "sha256"])
++        let path = try identity.field("path").text()
++        try require(path.hasPrefix("/"), "absolute pinned path")
++        let url = URL(fileURLWithPath: path), data = try observedRead(url)
++        try require(pin(url, data) == identity, "exact input pin: " + path)
++        return data
++    }
++    func recheck() throws {
+         for path in files.keys.sorted() {
+-            let data=try Data(contentsOf:URL(fileURLWithPath:path))
+-            try require(pin(URL(fileURLWithPath:path),data)==files[path],"post input changed: "+path)
+-        }
+-    }
+-    func observe(_ name:String,source:Data,response:Data,exit:Int32,
+-                 configuration:Bool?,expectedMessage:String?)throws {
+-        current=name
+-        let directory=output.appendingPathComponent(name,isDirectory:true)
+-        try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:false)
+-        try source.write(to:directory.appendingPathComponent("source.json"),options:.withoutOverwriting)
+-        try response.write(to:directory.appendingPathComponent("frontend.stdout"),options:.withoutOverwriting)
+-        var result="accepted",actual:JSONValue = .null,unexpected:JSONValue = .null
+-        decodeCalls+=1
++            let url = URL(fileURLWithPath: path)
++            try require(pin(url, try Data(contentsOf: url)) == files[path], "post input changed: " + path)
++        }
++    }
++    func verifyRun(_ row: JSONValue, root: String, parent: Bool) throws {
++        let name = try row.field("id").text()
++        let run = try parsed(pinnedRead(row.field("run"))), tool = try parsed(pinnedRead(row.field("actual_tool")))
++        let command: JSONValue = .array([python, "-I", "-S", "-B", root + "/frontend/" + (parent ? "export_parent.py" : "export.py")].map(JSONValue.string))
++        try require(try run.field("schema").text() == "src1b-decoder-frontend-export-run-v1" && run.field("entry").text() == name, "actual frontend run identity")
++        try require(try run.field("command") == command && run.field("cwd").text() == root && run.field("source") == row.field("source"), "actual compiler command/stdin identity")
++        try require(try run.field("files").field("stdout.log") == row.field("response") && run.field("files").field("stderr.log") == row.field("stderr"), "actual compiler raw stdio identity")
++        try require(try run.field("returncode").integerToken() == "0" && run.field("passed").boolean() && run.field("direct_child_reaped").boolean() && run.field("process_group_absent").boolean(), "actual compiler ready exit0")
++        try require(try !run.field("timed_out").boolean() && run.field("interrupted").elements().isEmpty && run.field("signals").elements().isEmpty && run.field("failure") == .null, "clean compiler terminal")
++        let work = try numeric(run.field("work_elapsed_seconds")), elapsed = try numeric(run.field("elapsed_seconds"))
++        try require(try run.field("budgets_seconds") == budgets && work >= 0 && work < 58 && elapsed >= work && elapsed < 60 && run.field("outer_zero_requires_post_save_post_flush_total_budget_gate").boolean(), "compiler work/total final gate contract")
++        try require(try tool.field("schema").text() == "src1b-decoder-frontend-export-actual-tool-v1" && tool.field("entry").text() == name && tool.field("run") == row.field("run") && tool.field("child_command") == command, "actual tool/run binding")
++        try require(try tool.field("observation").field("exit_code").integerToken() == "0", "actual outer exit0")
++    }
++
++    func observe(_ name: String, source: Data, response: Data, configuration: String?,
++                 expectedMessage: String?, expectedFailureStage: String?, expectedDomain: String?) throws {
++        current = name
++        let directory = output.appendingPathComponent(name, isDirectory: true)
++        try require(Darwin.mkdir(directory.path, mode_t(0o700)) == 0, "exclusive observation directory")
++        let sourceURL = directory.appendingPathComponent("source.json"), responseURL = directory.appendingPathComponent("frontend.stdout")
++        try source.write(to: sourceURL, options: .withoutOverwriting)
++        try response.write(to: responseURL, options: .withoutOverwriting)
++        var result = "accepted", stage = "decode", actual: JSONValue = .null, unexpected: JSONValue = .null
++        var decoded = false, metadata: JSONValue = .null
++        decodeCalls += 1
+         do {
+-            let program=try decodeCompilerExchange(source:source,response:response,actualExitCode:exit)
+-            if let configured=configuration {
+-                configurationCalls+=1
+-                try validateExternalDemandConfiguration(program,configured:configured)
++            let program = try decodeCompilerExchange(source: source, response: response, actualExitCode: 0)
++            decoded = true
++            metadata = .object(["execution_domain": .string(program.executionDomain.rawValue),
++                "source_bytes_sha256": .string(program.sourceBytesSHA256), "canonical_source_sha256": .string(program.canonicalSourceSHA256),
++                "compiler_response_sha256": .string(program.compilerResponseSHA256)])
++            if let configuration {
++                stage = "configuration"; configurationCalls += 1
++                if configuration == "parent" { try validateParentServiceConfiguration(program) }
++                else if configuration == "leaf-configured" { try validateExternalDemandConfiguration(program, configured: true) }
++                else { throw ProbeFailure(message: "unrecognized fixed configuration") }
+             }
++            stage = "none"
+         } catch let error as ProtocolError {
+-            result="protocol-rejected";actual=error.diagnostic
++            result = "protocol-rejected"; actual = error.diagnostic
++        } catch let error as FrontendRejection {
++            result = "frontend-rejected"; actual = error.diagnostic
++            unexpected = .object(["status": .string(error.status), "exit_code": .integer(Int(error.exitCode))])
+         } catch {
+-            result="unexpected-error"
+-            unexpected = .object(["type":.string(String(reflecting:type(of:error))),
+-                                  "description":.string(String(describing:error))])
+-        }
+-        let expected=expectedMessage.map(expectedDiagnostic) ?? .null
+-        let matched=expectedMessage == nil ? result == "accepted" : result == "protocol-rejected" && actual == expected
+-        let row:JSONValue = .object(["case":.string(name),"decode_result":.string(result),
+-            "actual_diagnostic":actual,"unexpected_error":unexpected,"expected_diagnostic":expected,
+-            "expectation_matched":.bool(matched),"compiler_actual_exit_supplied":.integer(Int(exit)),
+-            "configuration":configuration.map(JSONValue.bool) ?? .null,
+-            "source":pin(directory.appendingPathComponent("source.json"),source),
+-            "response":pin(directory.appendingPathComponent("frontend.stdout"),response)])
+-        // Persist the actual first observation, including an unexpected result,
+-        // before the assertion or any later case can fail.
+-        try save(row,directory.appendingPathComponent("observation.json"))
+-        observations.append(row)
+-        try require(matched,"first differing decoder observation: "+name)
+-    }
+-
+-    func run(manifestURL:URL)throws {
+-        let manifest=try parsed(observedRead(manifestURL))
+-        try require(try manifest.field("schema").text()=="src1-response-decoder-mutations-v1","mutation manifest schema")
+-        try require(try manifest.field("construction_complete").boolean() && !manifest.field("decoder_executed").boolean() && !manifest.field("candidate_executed").boolean(),"construction-only manifest")
+-        try require(try manifest.field("case_count").integerToken()=="49" && manifest.field("fixed_observation_count").integerToken()=="53","fixed finite counts")
+-        try require(try manifest.field("actual_compiler_exit_supplied").integerToken()=="0" && manifest.field("offer_only_actual_compiler_exit_supplied").integerToken()=="0","actual positive compiler exits")
+-        let basis=try manifest.field("decoder_source_basis")
+-        try require(try basis.field("revision").text()=="SRC1-R1" && basis.field("bytes").integerToken()=="51129" &&
+-                    basis.field("sha256").text()=="404f725c0a5b25d541ff07dc138cc1cd43120bd4bd9128eaeb5fb36228ca46b0","R1 decoder source basis")
+-        _=try pinnedRead(manifest.field("constructor"))
+-        let inputs=try manifest.field("inputs")
+-        let source=try pinnedRead(inputs.field("source")),response=try pinnedRead(inputs.field("response"))
+-        let onlySource=try pinnedRead(inputs.field("offer_only_source")),onlyResponse=try pinnedRead(inputs.field("offer_only_response"))
+-        let copies=try manifest.field("original_copies"),onlyCopies=try manifest.field("offer_only_copies")
+-        try require(try pinnedRead(copies.field("source"))==source && pinnedRead(copies.field("response"))==response,"complete original bytes preserved")
+-        try require(try pinnedRead(onlyCopies.field("source"))==onlySource && pinnedRead(onlyCopies.field("response"))==onlyResponse,"offer-only original bytes preserved")
+-        let rows=try manifest.field("cases").elements()
+-        try require(rows.count==fixedCases.count && fixedCases.count==49,"fixed decoder population")
+-        for (i,row) in rows.enumerated() {
+-            try require(try row.field("case").text()==fixedCases[i].0,"fixed case identity/order")
+-            try require(try row.field("expected_diagnostic")==expectedDiagnostic(fixedCases[i].1),"manifest cannot change expected diagnostic")
+-        }
+-
+-        try observe("BASE-configured-positive",source:source,response:response,exit:0,configuration:true,expectedMessage:nil)
+-        try observe("OFFER-ONLY-decode-positive",source:onlySource,response:onlyResponse,exit:0,configuration:nil,expectedMessage:nil)
+-        try observe("BASE-unconfigured-negative",source:source,response:response,exit:0,configuration:false,
+-                    expectedMessage:"external request configuration/checked source receive count")
+-        try observe("OFFER-ONLY-unconfigured-negative",source:onlySource,response:onlyResponse,exit:0,configuration:false,
+-                    expectedMessage:"source response offer requires external request configuration")
+-        for (index,row) in rows.enumerated() {
+-            let (name,message)=fixedCases[index];current=name
+-            let metadata=try parsed(pinnedRead(row.field("mutation")))
+-            try require(try metadata.field("case").text()==name && metadata.field("expected_diagnostic")==expectedDiagnostic(message) && !metadata.field("actual_decoder_executed").boolean(),"fixed mutation metadata identity")
+-            try require(try metadata.field("source")==row.field("source") && metadata.field("response")==row.field("response"),"mutation/manifest exact input pin correspondence")
+-            try require(try metadata.field("actual_compiler_exit_supplied").integerToken()=="0","mutation actual compiler exit")
+-            let changedSource=try pinnedRead(row.field("source")),changedResponse=try pinnedRead(row.field("response"))
+-            try require(changedResponse != response,"negative exchange differs from actual original")
+-            if !name.hasPrefix("S") {try require(changedSource==source,"annotation/registry mutation preserves source bytes")}
+-            try observe(name,source:changedSource,response:changedResponse,exit:0,configuration:nil,expectedMessage:message)
+-        }
+-        try require(observations.count==53 && decodeCalls==53 && configurationCalls==3,"all fixed actual calls completed")
+-        try recheckFiles()
+-        let report:JSONValue = .object(["schema":.string("src1-decoder-actual-controls-v1"),"passed":.bool(true),
+-            "observations":.array(observations),"observation_count":.integer(observations.count),
+-            "decode_calls":.integer(decodeCalls),"configuration_calls":.integer(configurationCalls),
+-            "files":.array(files.keys.sorted().map{files[$0]!}),"input_pins_unchanged":.bool(true),
+-            "source_runtime_executed":.bool(false),"compiler_started":.bool(false),"worker_started":.bool(false),
+-            "scope":.string("53 finite synchronous production decoder/configuration observations; no runtime response, request/receipt, lifecycle, GPU, liveness or whole-PL proof.")])
+-        try save(report,output.appendingPathComponent("result.json"))
+-        print("{\"passed\":true,\"observations\":53,\"decoder_negative_cases\":49}")
+-    }
+-
+-    func fail(_ error:any Error) {
+-        let report:JSONValue = .object(["schema":.string("src1-decoder-actual-controls-v1"),"passed":.bool(false),
+-            "first_failure_case":.string(current),"error_type":.string(String(reflecting:type(of:error))),
+-            "error":.string(String(describing:error)),"observations":.array(observations),
+-            "decode_calls":.integer(decodeCalls),"configuration_calls":.integer(configurationCalls),
+-            "files":.array(files.keys.sorted().map{files[$0]!}),"source_runtime_executed":.bool(false)])
+-        do {try save(report,output.appendingPathComponent("first-failure.json"))}
+-        catch {FileHandle.standardError.write(Data(("first-failure record save error: "+String(describing:error)+"\n").utf8))}
++            result = "unexpected-error"
++            unexpected = .object(["type": .string(String(reflecting: type(of: error))), "description": .string(String(describing: error))])
++        }
++        let expected = expectedMessage.map(diagnostic) ?? .null
++        var matched = expectedMessage == nil ? result == "accepted" : result == "protocol-rejected" && actual == expected && stage == expectedFailureStage
++        if let expectedDomain {
++            do {
++                let canonical = try sha(parsed(source).sourceCanonicalEncoded())
++                matched = matched && metadata == .object(["execution_domain": .string(expectedDomain),
++                    "source_bytes_sha256": .string(sha(source)), "canonical_source_sha256": .string(canonical),
++                    "compiler_response_sha256": .string(sha(response))])
++            } catch {
++                matched = false
++                unexpected = .object(["metadata_validation_error": .string(String(describing: error)),
++                                      "original_unexpected_error": unexpected])
++            }
++        }
++        let observation: JSONValue = .object(["case": .string(name), "result": .string(result),
++            "production_decode_returned": .bool(decoded), "failure_stage": .string(stage),
++            "configuration": configuration.map(JSONValue.string) ?? .null, "program_metadata": metadata,
++            "actual_diagnostic": actual, "unexpected_error": unexpected, "expected_diagnostic": expected,
++            "expected_failure_stage": expectedFailureStage.map(JSONValue.string) ?? .null,
++            "expectation_matched": .bool(matched), "compiler_actual_exit_supplied": .integer(0),
++            "source": pin(sourceURL, source), "response": pin(responseURL, response)])
++        // Preserve the actual result before asserting it or starting another case.
++        try save(observation, directory.appendingPathComponent("observation.json"))
++        observations.append(observation)
++        try require(matched, "first differing decoder observation: " + name)
++    }
++
++    func run(_ manifestURL: URL) throws {
++        let manifest = try parsed(observedRead(manifestURL))
++        try require(try manifest.field("schema").text() == "src1b-parent-decoder-inputs-v1" && manifest.field("construction_complete").boolean(), "complete decoder input manifest")
++        try require(try !manifest.field("decoder_executed").boolean() && !manifest.field("compiler_started").boolean() && !manifest.field("source_runtime_executed").boolean() && !manifest.field("model_loaded").boolean(), "construction-only provenance")
++        try require(try manifest.field("mutation_count").integerToken() == "15" && manifest.field("observation_count").integerToken() == "20" && manifest.field("configuration_calls").integerToken() == "5", "fixed finite counts")
++        let basis = try manifest.field("program_source_basis")
++        _ = try pinnedRead(basis)
++        try require(try basis.field("bytes").integerToken() == "63836" && basis.field("sha256").text() == "e7b982727e272bf34bece17c8554427a3ba6adfb51bf57ac6be0772272ff90c9", "reviewed B decoder source basis")
++        _ = try pinnedRead(manifest.field("constructor"))
++        let oracle = try manifest.field("oracle")
++        _ = try pinnedRead(oracle)
++        try require(try oracle.field("bytes").integerToken() == "6539" && oracle.field("sha256").text() == "90dd52dae21c9383ea23638a8d0cea777fe3c5a6d2917b09ef04325ecaad01d5", "unchanged reviewed 15-case oracle")
++        for input in try manifest.field("inputs").elements() { _ = try pinnedRead(input) }
++        let root = try manifest.field("source_root").text()
++        try require(root.hasPrefix("/"), "absolute source root")
++        let sourceManifest = try parsed(pinnedRead(manifest.field("source_manifest")))
++        let index = try parsed(pinnedRead(manifest.field("exchange_index")))
++        try require(try sourceManifest.field("schema").text() == "src1b-decoder-sources-v1" && sourceManifest.field("construction_complete").boolean() && sourceManifest.field("source_root").text() == root && sourceManifest.field("program_source_basis") == basis, "source manifest identity")
++        for input in try sourceManifest.field("inputs").elements() { _ = try pinnedRead(input) }
++        let sourceRows = try sourceManifest.field("sources").elements()
++        try require(try sourceRows.map { try $0.field("id").text() } == ["golden", "empty", "service-only"], "fixed source population")
++        let sourcePins = try Dictionary(uniqueKeysWithValues: sourceRows.map { (try $0.field("id").text(), try $0.field("source")) })
++        try require(try index.field("schema").text() == "src1b-decoder-exchange-index-v1" && index.field("source_root").text() == root && index.field("source_manifest") == manifest.field("source_manifest"), "actual exchange index identity")
++        let indexed = try index.field("exchanges").elements(), exchanges = try manifest.field("exchanges").elements()
++        try require(indexed.count == 4 && exchanges.count == 4, "four actual exchanges")
++        var originals: [(Data, Data)] = []
++        for (i, row) in exchanges.enumerated() {
++            let name = exchangeIDs[i], parent = i < 3
++            current = "input-" + name
++            try require(try row.field("id").text() == name && row.field("exporter").text() == (parent ? "parent" : "child") && row.field("source") == sourcePins[sourceIDs[i]], "fixed exchange source/entry")
++            for key in ["id", "exporter", "source", "response", "stderr", "run", "actual_tool"] {
++                try require(try row.field(key) == indexed[i].field(key), "exchange/index exact correspondence")
++            }
++            try require(try row.field("actual_compiler_exit_supplied").integerToken() == "0", "actual compiler exit supplied")
++            let source = try pinnedRead(row.field("source")), response = try pinnedRead(row.field("response")), stderr = try pinnedRead(row.field("stderr"))
++            let copies = try row.field("original_copies")
++            try require(try pinnedRead(copies.field("source")) == source && pinnedRead(copies.field("response")) == response && pinnedRead(copies.field("stderr")) == stderr, "original raw exchange preserved")
++            try verifyRun(row, root: root, parent: parent)
++            originals.append((source, response))
++        }
++        let mutations = try manifest.field("mutations").elements()
++        try require(mutations.count == fixedCases.count && fixedCases.count == 15, "fixed mutation population")
++        for (i, row) in mutations.enumerated() {
++            try require(try row.field("id").text() == fixedCases[i].0 && row.field("expected_diagnostic") == diagnostic(fixedCases[i].1), "manifest cannot change case order or oracle")
++        }
++        try observe("GOLDEN-parent-configuration", source: originals[0].0, response: originals[0].1, configuration: "parent", expectedMessage: nil, expectedFailureStage: nil, expectedDomain: "hostParent")
++        try observe("GOLDEN-leaf-configuration-rejected", source: originals[0].0, response: originals[0].1, configuration: "leaf-configured", expectedMessage: "external demand requires mlxLeaf domain", expectedFailureStage: "configuration", expectedDomain: "hostParent")
++        try observe("EMPTY-parent-configuration-rejected", source: originals[1].0, response: originals[1].1, configuration: "parent", expectedMessage: "parent service configuration requires one call_service occurrence", expectedFailureStage: "configuration", expectedDomain: "hostParent")
++        try observe("SERVICE-ONLY-parent-configuration-rejected", source: originals[2].0, response: originals[2].1, configuration: "parent", expectedMessage: "parent service configuration requires one call_tool occurrence", expectedFailureStage: "configuration", expectedDomain: "hostParent")
++        try observe("CHILD-parent-configuration-rejected", source: originals[3].0, response: originals[3].1, configuration: "parent", expectedMessage: "parent configuration requires hostParent domain", expectedFailureStage: "configuration", expectedDomain: "mlxLeaf")
++        let original = try parsed(originals[0].1), originalTable = try original.field("program").field("static_values").elements()
++        for (i, row) in mutations.enumerated() {
++            let (name, message) = fixedCases[i]; current = name
++            let metadata = try parsed(pinnedRead(row.field("metadata")))
++            try require(try metadata.field("schema").text() == "src1b-parent-decoder-mutation-v1" && metadata.field("id").text() == name && metadata.field("expected_diagnostic") == diagnostic(message), "fixed mutation metadata")
++            try require(try metadata.field("source") == row.field("source") && metadata.field("response") == row.field("response") && !metadata.field("source_rewritten").boolean() && !metadata.field("decoder_executed").boolean() && metadata.field("actual_compiler_exit_supplied").integerToken() == "0", "mutation exact input/provenance")
++            let source = try pinnedRead(row.field("source")), response = try pinnedRead(row.field("response"))
++            try require(source == originals[0].0 && response != originals[0].1, "unchanged real source and changed exchange")
++            let changed = try parsed(response), table = try changed.field("program").field("static_values").elements()
++            let differences = wireDifferences(original, changed)
++            try require(!differences.isEmpty && Array(table.prefix(originalTable.count)) == originalTable, "negative without shared original leaf changes")
++            try require(try metadata.field("wire_changes") == .array(differences) && metadata.field("wire_changed_count").integerToken() == String(differences.count), "complete actual wire difference")
++            try require(try metadata.field("original_static_prefix_unchanged").boolean() && metadata.field("original_static_count").integerToken() == String(originalTable.count) && metadata.field("appended_static_count").integerToken() == String(table.count - originalTable.count), "actual original/appended static population")
++            let origin = try metadata.field("input_origin")
++            try require(try origin.field("source_sha256").text() == sha(originals[0].0) && origin.field("response_sha256").text() == sha(originals[0].1) && origin.field("actual_frontend_exit").integerToken() == "0", "mutation original actual exchange")
++            try observe(name, source: source, response: response, configuration: nil, expectedMessage: message, expectedFailureStage: "decode", expectedDomain: nil)
++        }
++        try require(observations.count == 20 && decodeCalls == 20 && configurationCalls == 5, "all fixed production calls completed")
++        try recheck()
++        let result: JSONValue = .object(["schema": .string("src1b-decoder-actual-controls-v1"), "passed": .bool(true),
++            "observation_count": .integer(20), "mutation_count": .integer(15), "decode_calls": .integer(decodeCalls),
++            "configuration_calls": .integer(configurationCalls), "observations": .array(observations),
++            "files": .array(files.keys.sorted().map { files[$0]! }), "input_pins_unchanged": .bool(true),
++            "source_runtime_executed": .bool(false), "compiler_started": .bool(false), "worker_started": .bool(false),
++            "scope": .string("20 finite synchronous decoder/configuration observations; no parent/child runtime, lookup, response receipt, HostClose, GPU or general PL proof")])
++        try save(result, output.appendingPathComponent("result.json"))
++        FileHandle.standardOutput.write(Data("{\"passed\":true,\"observations\":20,\"decoder_mutations\":15,\"configuration_calls\":5}\n".utf8))
++    }
++    func fail(_ error: any Error) {
++        let result: JSONValue = .object(["schema": .string("src1b-decoder-actual-controls-v1"), "passed": .bool(false),
++            "first_failure_case": .string(current), "error_type": .string(String(reflecting: type(of: error))),
++            "error": .string(String(describing: error)), "observations": .array(observations),
++            "decode_calls": .integer(decodeCalls), "configuration_calls": .integer(configurationCalls),
++            "files": .array(files.keys.sorted().map { files[$0]! }), "source_runtime_executed": .bool(false)])
++        do { try save(result, output.appendingPathComponent("first-failure.json")) }
++        catch { FileHandle.standardError.write(Data(("first-failure save error: " + String(describing: error) + "\n").utf8)) }
+     }
+ }
+ 
+ @main
+ private struct Main {
+     static func main() {
+-        var probe:Probe?
++        var probe: Probe?
+         do {
+-            let args=Array(CommandLine.arguments.dropFirst())
+-            try require(args.count==4 && args[0]=="--manifest" && args[2]=="--output-dir","usage: src1-decoder-cpu --manifest ABS --output-dir NEW_ABS")
+-            try require(args[1].hasPrefix("/") && args[3].hasPrefix("/"),"absolute paths required")
+-            let manifest=URL(fileURLWithPath:args[1]),output=URL(fileURLWithPath:args[3],isDirectory:true)
+-            try require(!FileManager.default.fileExists(atPath:output.path),"exclusive new output directory")
+-            try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
+-            let current=Probe(output:output);probe=current
+-            try current.run(manifestURL:manifest)
++            let args = Array(CommandLine.arguments.dropFirst())
++            try require(args.count == 4 && args[0] == "--manifest" && args[2] == "--output-dir", "usage: src1b-decoder-cpu --manifest ABS --output-dir NEW_ABS")
++            try require(args[1].hasPrefix("/") && args[3].hasPrefix("/"), "absolute paths required")
++            let output = URL(fileURLWithPath: args[3], isDirectory: true)
++            try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
++            try require(Darwin.mkdir(output.path, mode_t(0o700)) == 0, "exclusive new output directory")
++            let current = Probe(output: output); probe = current
++            try current.run(URL(fileURLWithPath: args[1]))
+         } catch {
+             probe?.fail(error)
+-            FileHandle.standardError.write(Data(("SRC1 decoder first failure: "+String(describing:error)+"\n").utf8))
++            FileHandle.standardError.write(Data(("SRC1 B decoder first failure: " + String(describing: error) + "\n").utf8))
+             Darwin.exit(1)
+         }
+     }
+--- /dev/null
++++ /Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/decoder-controls/parent_decoder_inputs_v1.py
+@@ -0,0 +1,279 @@
++#!/usr/bin/env python3
++"""SRC1 B decoder data preparation only; never starts a compiler or decoder.
++
++sources imports one pinned pure builder. mutations imports the independently
++reviewed, pinned 15-case pure oracle only after verifying four actual exports.
++Root supplies bounded execution and preserves actual outer tool exits.
++"""
++import argparse
++import base64
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++import sys
++
++PYTHON = '/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14'
++PINS = {
++    'frontend/parent_fixture.py': (2869, '7003a59b29f8ee326181ee8eacd3b0212330522b453deade87947c63481436b8'),
++    'frontend/parent_decoder_mutations.py': (6539, '90dd52dae21c9383ea23638a8d0cea777fe3c5a6d2917b09ef04325ecaad01d5'),
++    'frontend/export_parent.py': (940, '28b67fc423ffdaba9cebb36071d8e496f4558507e1658ec3ec5528d37153779b'),
++    'frontend/export.py': (925, '41b5068e07088de80244726aec42c49f4840e0fc38f6d26c40e3667821c7913c'),
++    'Sources/RuntimeCore/Program.swift': (63836, 'e7b982727e272bf34bece17c8554427a3ba6adfb51bf57ac6be0772272ff90c9'),
++}
++CASES = (
++    ('unknown-profile', 'program version'),
++    ('wrong-sigma-id', 'fixed Sigma implementations'),
++    ('source-bytes-hash', 'exact source bytes'),
++    ('service-result-unit', 'parent fieldless Word contract'),
++    ('service-tokens-seven', 'parent complete Pair contract'),
++    ('tool-argument-nat', 'parent fieldless Word contract'),
++    ('tool-result-word-length', 'parent fieldless Nat contract'),
++    ('scope-kind', 'parent plain Scope kind'),
++    ('scope-identity', 'parent current scope nominal correspondence'),
++    ('service-effect-literal', 'parent HostService fixed literal'),
++    ('service-effect-scope', 'parent current scope nominal correspondence'),
++    ('tool-capability', 'parent LocalRead fixed literal'),
++    ('missing-raise', 'parent exact effect arity'),
++    ('extra-effect', 'parent exact effect arity'),
++    ('command-direct-copy', 'source-directed direct usage'),
++)
++EXCHANGES = (('parent-golden', 'golden', 'parent'), ('parent-empty', 'empty', 'parent'),
++             ('parent-service-only', 'service-only', 'parent'), ('child-empty', 'empty', 'child'))
++BUDGETS = {'outer': 60, 'work': 58, 'term': 1, 'kill_reap': 0.5, 'report_reserve': 0.5}
++
++
++def require(ok, message):
++    if not ok:
++        raise ValueError(message)
++
++
++def sha(data):
++    return hashlib.sha256(data).hexdigest()
++
++
++def encoded(value):
++    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
++
++
++def strict(data):
++    def pairs(rows):
++        result = {}
++        for key, value in rows:
++            require(key not in result, 'duplicate JSON key: ' + key)
++            result[key] = value
++        return result
++    def reject(value):
++        raise ValueError('nonfinite JSON token: ' + value)
++    return json.loads(data.decode('utf-8'), object_pairs_hook=pairs, parse_constant=reject)
++
++
++def diagnostic(message):
++    return {'phase': 'protocol', 'code': 'invalid-compiler-exchange', 'path': [], 'message': message}
++
++
++def differences(left, right, path=()):
++    if type(left) is type(right) and left == right:
++        return []
++    if type(left) is dict and type(right) is dict:
++        keys = sorted(left.keys() | right.keys())
++    elif type(left) is list and type(right) is list:
++        keys = range(max(len(left), len(right)))
++    else:
++        keys = None
++    if keys is None:
++        return [{'pointer': '/' + '/'.join(str(x).replace('~', '~0').replace('/', '~1') for x in path),
++                 'old_present': True, 'new_present': True, 'old': left, 'new': right}]
++    rows = []
++    for key in keys:
++        old = key in left if type(left) is dict else key < len(left)
++        new = key in right if type(right) is dict else key < len(right)
++        if old and new:
++            rows.extend(differences(left[key], right[key], path + (key,)))
++        else:
++            rows.append({'pointer': '/' + '/'.join(str(x).replace('~', '~0').replace('/', '~1') for x in path + (key,)),
++                         'old_present': old, 'new_present': new,
++                         'old': left[key] if old else None, 'new': right[key] if new else None})
++    return rows
++
++
++class Preparation:
++    def __init__(self, root, output):
++        self.root, self.output = root, output
++        self.inputs, self.completed = {}, []
++        self.current = 'input-preflight'
++
++    def read(self, path):
++        require(path.is_absolute() and path.is_file() and not path.is_symlink(), 'absolute regular input: ' + str(path))
++        data = path.read_bytes()
++        record = {'path': str(path), 'bytes': len(data), 'sha256': sha(data)}
++        require(str(path) not in self.inputs or self.inputs[str(path)] == record, 'changed input: ' + str(path))
++        self.inputs[str(path)] = record
++        return data
++
++    def pinned(self, record):
++        require(set(record) == {'path', 'bytes', 'sha256'}, 'exact pin fields')
++        data = self.read(Path(record['path']))
++        require(self.inputs[record['path']] == record, 'input pin: ' + record['path'])
++        return data
++
++    def write(self, path, data):
++        with path.open('xb') as stream:
++            stream.write(data)
++        return {'path': str(path), 'bytes': len(data), 'sha256': sha(data)}
++
++    def save(self, path, value):
++        return self.write(path, encoded(value) + b'\n')
++
++    def recheck(self):
++        for path, record in sorted(self.inputs.items()):
++            data = Path(path).read_bytes()
++            require(len(data) == record['bytes'] and sha(data) == record['sha256'], 'post input changed: ' + path)
++
++    def fixed_inputs(self):
++        for relative, expected in PINS.items():
++            data = self.read(self.root / relative)
++            require((len(data), sha(data)) == expected, 'pinned source basis: ' + relative)
++        self.read(Path(__file__).resolve())
++
++    def module(self, relative, name):
++        # Only fixed, previously pinned pure helpers; never frontend/exporter.
++        spec = importlib.util.spec_from_file_location(name, self.root / relative)
++        module = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(module)
++        return module
++
++    def common(self):
++        return {'constructor': self.inputs[str(Path(__file__).resolve())],
++                'program_source_basis': self.inputs[str(self.root / 'Sources/RuntimeCore/Program.swift')],
++                'source_root': str(self.root), 'decoder_executed': False,
++                'compiler_started': False, 'source_runtime_executed': False, 'model_loaded': False}
++
++    def sources(self):
++        f = self.module('frontend/parent_fixture.py', 'src1b_pinned_parent_data')
++        self.current = 'source-construction'
++        empty = {'schema': 'p8-runtime-closed-source-v0.1', 'main': {'result': f.t('Unit'), 'effect': f.eff(), 'body': f.ret()}}
++        service_body = f.c('let_e', name='requestTokens', expression={'expression': 'value', 'value': f.tokens_value()}, next=f.service())
++        service_only = f.in_scope(service_body, f.eff(f.atom('HostService', scope='ParentS', service='B'), f.atom('Raise')), f.t('Word'))
++        for name, value in [('golden', f.source()), ('empty', empty), ('service-only', service_only)]:
++            self.current = name
++            self.completed.append({'id': name, 'source': self.write(self.output / (name + '.json'), encoded(value) + b'\n')})
++        self.recheck()
++        record = dict(self.common(), schema='src1b-decoder-sources-v1', construction_complete=True,
++                      sources=self.completed, inputs=list(self.inputs.values()))
++        self.save(self.output / 'manifest.json', record)
++
++    def mutations(self, source_manifest_path, index_path):
++        sources = strict(self.read(source_manifest_path))
++        require(sources['schema'] == 'src1b-decoder-sources-v1' and sources['construction_complete'] is True, 'source manifest complete')
++        require(sources['source_root'] == str(self.root) and sources['program_source_basis'] == self.common()['program_source_basis'], 'same source/program basis')
++        for item in sources['inputs']:
++            self.pinned(item)
++        require([x['id'] for x in sources['sources']] == ['golden', 'empty', 'service-only'], 'fixed source population')
++        source_rows = {x['id']: x['source'] for x in sources['sources']}
++        index = strict(self.read(index_path))
++        require(set(index) == {'schema', 'source_root', 'source_manifest', 'exchanges'}, 'exchange index fields')
++        require(index['schema'] == 'src1b-decoder-exchange-index-v1' and index['source_root'] == str(self.root), 'exchange index schema/root')
++        require(index['source_manifest'] == self.inputs[str(source_manifest_path)], 'source manifest identity')
++        require([x['id'] for x in index['exchanges']] == [x[0] for x in EXCHANGES], 'four actual exchange order')
++        originals, exchanges = {}, []
++        for row, (name, source_name, exporter) in zip(index['exchanges'], EXCHANGES):
++            self.current = name
++            require(set(row) == {'id', 'exporter', 'source', 'response', 'stderr', 'run', 'actual_tool'}, 'exchange row fields')
++            require(row['exporter'] == exporter and row['source'] == source_rows[source_name], 'fixed source/exporter selection')
++            source, response, stderr = (self.pinned(row[k]) for k in ('source', 'response', 'stderr'))
++            run, tool = (strict(self.pinned(row[k])) for k in ('run', 'actual_tool'))
++            script = self.root / 'frontend' / ('export_parent.py' if exporter == 'parent' else 'export.py')
++            command = [PYTHON, '-I', '-S', '-B', str(script)]
++            require(run['schema'] == 'src1b-decoder-frontend-export-run-v1' and run['entry'] == name, 'actual frontend run identity')
++            require(run['command'] == command and run['cwd'] == str(self.root) and run['source'] == row['source'], 'actual compiler command/stdin')
++            require(run['files']['stdout.log'] == row['response'] and run['files']['stderr.log'] == row['stderr'], 'actual raw stdio identity')
++            require(type(run['returncode']) is int and run['returncode'] == 0 and run['passed'] is True and run['direct_child_reaped'] is True and run['process_group_absent'] is True, 'actual ready compiler exit0')
++            require(run['timed_out'] is False and run['interrupted'] == [] and run['signals'] == [] and run['failure'] is None, 'clean compiler terminal')
++            require(run['budgets_seconds'] == BUDGETS and 0 <= run['work_elapsed_seconds'] < 58 and run['work_elapsed_seconds'] <= run['elapsed_seconds'] < 60, 'compiler work/total budget')
++            require(run['outer_zero_requires_post_save_post_flush_total_budget_gate'] is True, 'compiler final gate contract')
++            require(tool['schema'] == 'src1b-decoder-frontend-export-actual-tool-v1' and tool['entry'] == name and tool['run'] == row['run'] and tool['child_command'] == command, 'actual tool/run binding')
++            require(type(tool['observation']['exit_code']) is int and tool['observation']['exit_code'] == 0, 'actual outer exit0, not provisional passed')
++            ready = strict(response)
++            profile = 'src1b-parent-host-close-v1' if exporter == 'parent' else 'src1-response-offer-owner1-v1'
++            require(ready['schema'] == 'p8-runtime-frontend-response-v1' and ready['status'] == 'ready' and ready['diagnostic'] is None and ready['program']['profile'] == profile, 'actual ready profile')
++            embedded = ready['program']['source']
++            require(base64.b64decode(embedded['utf8_base64'], validate=True) == source and embedded['bytes_sha256'] == sha(source), 'actual exported source bytes')
++            directory = self.output / name
++            directory.mkdir()
++            copies = {key: self.write(directory / filename, data) for key, filename, data in
++                      [('source', 'source.json', source), ('response', 'frontend.stdout', response), ('stderr', 'frontend.stderr', stderr)]}
++            exchanges.append(dict(row, original_copies=copies, actual_compiler_exit_supplied=0))
++            originals[name] = (source, response)
++        oracle = self.module('frontend/parent_decoder_mutations.py', 'src1b_pinned_parent_oracle')
++        require(oracle.CASES == CASES, 'fixed reviewed mutation oracle')
++        source, response = originals['parent-golden']
++        original = strict(response)
++        cases = oracle.build_cases(source, response, 0)
++        require([(x['id'], x['expected_message']) for x in cases] == list(CASES), 'fixed 15 mutation population')
++        for case, (name, message) in zip(cases, CASES):
++            self.current = name
++            changed = case['response']
++            old_table, new_table = original['program']['static_values'], changed['program']['static_values']
++            require(new_table[:len(old_table)] == old_table, 'original shared static prefix unchanged')
++            changes = differences(original, changed)
++            require(changes, 'negative must change actual response')
++            directory = self.output / name
++            directory.mkdir()
++            source_pin = self.write(directory / 'source.json', source)
++            response_pin = self.write(directory / 'frontend.stdout', encoded(changed) + b'\n')
++            metadata = {'schema': 'src1b-parent-decoder-mutation-v1', 'id': name,
++                        'source': source_pin, 'response': response_pin,
++                        'expected_diagnostic': diagnostic(message), 'input_origin': case['input_origin'],
++                        'actual_compiler_exit_supplied': 0, 'source_rewritten': False, 'decoder_executed': False,
++                        'wire_changes': changes, 'wire_changed_count': len(changes),
++                        'original_static_count': len(old_table), 'appended_static_count': len(new_table) - len(old_table),
++                        'original_static_prefix_unchanged': True}
++            metadata_pin = self.save(directory / 'mutation.json', metadata)
++            self.completed.append({'id': name, 'source': source_pin, 'response': response_pin,
++                                   'metadata': metadata_pin, 'expected_diagnostic': diagnostic(message)})
++        self.recheck()
++        record = dict(self.common(), schema='src1b-parent-decoder-inputs-v1', construction_complete=True,
++                      source_manifest=self.inputs[str(source_manifest_path)], exchange_index=self.inputs[str(index_path)],
++                      oracle=self.inputs[str(self.root / 'frontend/parent_decoder_mutations.py')],
++                      exchanges=exchanges, mutations=self.completed, mutation_count=15,
++                      observation_count=20, configuration_calls=5, inputs=list(self.inputs.values()))
++        self.save(self.output / 'manifest.json', record)
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('mode', choices=('sources', 'mutations'))
++    parser.add_argument('--source-root', type=Path, required=True)
++    parser.add_argument('--output-dir', type=Path, required=True)
++    parser.add_argument('--source-manifest', type=Path)
++    parser.add_argument('--exchange-index', type=Path)
++    args = parser.parse_args()
++    paths = [args.source_root, args.output_dir] + [p for p in (args.source_manifest, args.exchange_index) if p is not None]
++    require(all(p.is_absolute() for p in paths), 'absolute paths required')
++    require((args.mode == 'mutations') == (args.source_manifest is not None and args.exchange_index is not None), 'mutations requires both original source manifest and actual exchange index')
++    require(args.mode != 'sources' or (args.source_manifest is None and args.exchange_index is None), 'sources has no actual exchange inputs')
++    args.output_dir.mkdir(parents=True, exist_ok=False)
++    work = Preparation(args.source_root.resolve(strict=True), args.output_dir)
++    try:
++        work.fixed_inputs()
++        if args.mode == 'sources':
++            work.sources()
++        else:
++            work.mutations(args.source_manifest, args.exchange_index)
++        print(json.dumps({'construction_complete': True, 'mode': args.mode, 'output_dir': str(args.output_dir)}), flush=True)
++        return 0
++    except BaseException as error:
++        failure = dict(work.common() if str(Path(__file__).resolve()) in work.inputs and str(work.root / 'Sources/RuntimeCore/Program.swift') in work.inputs else {},
++                       schema='src1b-decoder-preparation-failure-v1', construction_complete=False,
++                       first_failure_case=work.current, error_type=type(error).__name__, error=str(error),
++                       completed_prefix=work.completed, inputs=list(work.inputs.values()))
++        try:
++            work.save(args.output_dir / 'first-failure.json', failure)
++        except BaseException as save_error:
++            print('first-failure save error: ' + repr(save_error), file=sys.stderr, flush=True)
++        raise
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+--- /dev/null
++++ /Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime/decoder-controls/PARENT-DECODER-INTERFACE-v1.md
+@@ -0,0 +1,103 @@
++# SRC1 B 首次 decoder 控制接口
++
++状态：源码准备，未编译、未运行、未 import 候选，也未生成任何源或变异输入。现有 frontend、15-case oracle 和 Program.swift 保持原字节。新入口只依赖 RuntimeCore；Package 的 product `src1b-decoder-cpu` / target `SRC1BDecoderCPU` 由 root 注册，源文件为 `Main.swift` 配合 `@main`。
++
++## 固定观察人口
++
++Swift 按以下顺序做 **20 次实际 production decode，5 次实际 configuration API 调用**。前五条全部必须 decode 成功；后四条是在指定配置 API 才拒绝。然后检查原有 15 个变异。
++
++| 顺序 | 原始 exchange | configuration | 精确结果 |
++| --- | --- | --- | --- |
++| 1 | parent-golden | parent | 接受，domain=hostParent |
++| 2 | parent-golden | leaf-configured=true | `external demand requires mlxLeaf domain` |
++| 3 | parent-empty | parent | `parent service configuration requires one call_service occurrence` |
++| 4 | parent-service-only | parent | `parent service configuration requires one call_tool occurrence` |
++| 5 | child-empty | parent | `parent configuration requires hostParent domain` |
++| 6–20 | parent-golden 的原 15 个独立变异 | 无 | Main.swift 固定 ID/message 表，与原 `parent_decoder_mutations.py` 一致 |
++
++比较完整 ProtocolError JSON：`phase=protocol, code=invalid-compiler-exchange, path=[], message=固定原文`；同时比较错误出现于 decode 还是 configuration。manifest 不允许另给任意 expected 值。`command-direct-copy` 保持已审 S2 最早边界 `source-directed direct usage`，不为到达后续守卫修改 production decoder。
++
++首条 golden 额外核对 decoder 返回的四项只读 metadata（domain、原 source bytes hash、canonical source hash、实际 response hash）。四个配置负例也核对对应 metadata，不把 decoder 错误冒充配置拒绝。
++
++## 新 Python 准备器
++
++调用使用固定 Python 与 `-I -S -B`。下列 `ABS_FROZEN_RUNTIME` 指完整冻结 runtime 根，包含原 frontend、`Sources/RuntimeCore/Program.swift` 及新 helper；不能把仅有 documents/Program.swift 的前端测试冻结目录直接当作该根。
++
++```text
++FIXED_PYTHON -I -S -B ABS_HELPER sources
++  --source-root ABS_FROZEN_RUNTIME --output-dir ABS_NEW_SOURCES
++
++FIXED_PYTHON -I -S -B ABS_HELPER mutations
++  --source-root ABS_FROZEN_RUNTIME --source-manifest ABS_NEW_SOURCES/manifest.json
++  --exchange-index ABS_EXCHANGE_INDEX --output-dir ABS_NEW_MUTATIONS
++
++ABS_BUILT_SRC1B_DECODER --manifest ABS_NEW_MUTATIONS/manifest.json
++  --output-dir ABS_NEW_OBSERVATIONS
++```
++
++`sources` 只导入 hash 固定的 `parent_fixture.py`，构造三个源文件：`golden.json`、`empty.json`、`service-only.json`。empty 是返回 Unit 的普通闭源；service-only 在实际 plain scope 内构造 Tokens8 并调用服务，结果为 Word。后两者特意缺少正式父配置要求的命令，其静态合法性和实际 ready 响应必须由后续 frontend 首次执行验证，不由 builder 自称。child-empty 复用同一 empty 文件，但必须通过原 child exporter 独立实际导出。
++
++输出 source manifest schema=`src1b-decoder-sources-v1`，包含 `construction_complete`、固定三项 `sources:[{id,source:PIN}]`、所有读入 `inputs`、`constructor`、`program_source_basis`、`source_root` 和明确未启动 compiler/decoder/runtime/model 的字段。PIN 始终为 exact `{path,bytes,sha256}`，绝对路径。Program basis 固定 63836 B / `e7b982727e272bf34bece17c8554427a3ba6adfb51bf57ac6be0772272ff90c9`；oracle 固定 6539 B / `90dd52dae21c9383ea23638a8d0cea777fe3c5a6d2917b09ef04325ecaad01d5`。
++
++## 四次真实导出及 exchange index
++
++root 另行源码审阅、冻结并运行 bounded export runner。每次使用 source 文件的完整原 bytes 作为 stdin，固定 cwd=`ABS_FROZEN_RUNTIME`。固定 child argv 为：
++
++```text
++FIXED_PYTHON -I -S -B ABS_FROZEN_RUNTIME/frontend/export_parent.py
++FIXED_PYTHON -I -S -B ABS_FROZEN_RUNTIME/frontend/export.py
++```
++
++第一行用于前三项，第二行只用于 child-empty。每项有新独占输出目录，保存实际 stdout/stderr 原 bytes；不能自行编造 ready JSON。失败完整保存并停止，不自动执行后续项或重跑。
++
++index 的 exact 顶层字段如下（尖括号是接口占位，不是已产生数据）：
++
++```json
++{
++  "schema": "src1b-decoder-exchange-index-v1",
++  "source_root": "<ABS_FROZEN_RUNTIME>",
++  "source_manifest": "<PIN of source manifest>",
++  "exchanges": [
++    {"id":"parent-golden","exporter":"parent","source":"<golden PIN>","response":"<actual stdout PIN>","stderr":"<actual stderr PIN>","run":"<run PIN>","actual_tool":"<actual outer tool record PIN>"},
++    {"id":"parent-empty","exporter":"parent","source":"<empty PIN>","response":"<actual stdout PIN>","stderr":"<actual stderr PIN>","run":"<run PIN>","actual_tool":"<actual outer tool record PIN>"},
++    {"id":"parent-service-only","exporter":"parent","source":"<service-only PIN>","response":"<actual stdout PIN>","stderr":"<actual stderr PIN>","run":"<run PIN>","actual_tool":"<actual outer tool record PIN>"},
++    {"id":"child-empty","exporter":"child","source":"<same empty PIN>","response":"<actual stdout PIN>","stderr":"<actual stderr PIN>","run":"<run PIN>","actual_tool":"<actual outer tool record PIN>"}
++  ]
++}
++```
++
++每个 run record 必须有下列字段；可以保留 wrapper 的额外原观察，不要求删减：
++
++- `schema="src1b-decoder-frontend-export-run-v1"`；`entry` 为上述 ID；`command` 为实际固定 child argv；`cwd` 为冻结 runtime 根。
++- `source=PIN`，对应实际送入 stdin 的完整源文件；`files.stdout.log=PIN`、`files.stderr.log=PIN`，分别与 index 的 response/stderr 完全相同。
++- `returncode=0`（整数）、`passed=true`、`direct_child_reaped=true`、`process_group_absent=true`；`timed_out=false`、`interrupted=[]`、`signals=[]`、`failure=null`。
++- `budgets_seconds={"outer":60,"work":58,"term":1,"kill_reap":0.5,"report_reserve":0.5}`；`0 <= work_elapsed_seconds < 58` 且 `work_elapsed_seconds <= elapsed_seconds < 60`。
++- `outer_zero_requires_post_save_post_flush_total_budget_gate=true`。run 的 passed/elapsed 仍为末门前观察，必须有下述真实 outer0 才可消费。
++
++每个 actual tool record 由 root 在真正终态后保存，字段至少为：
++
++```json
++{
++  "schema": "src1b-decoder-frontend-export-actual-tool-v1",
++  "entry": "<fixed ID>",
++  "run": "<exact run PIN>",
++  "child_command": ["<same actual fixed child argv>"],
++  "tool": "<actual tool name>",
++  "initial": "<original launch/session result when yielded>",
++  "observation": {"exit_code":0,"chunk_id":"<actual terminal chunk>","output":"<verbatim original tool output>"}
++}
++```
++
++`initial` 无 yield 时可以省略。root 应保真实完整 tool 结果与精确外层 wrapper 命令；新准备器和 Swift 均核对 actual tool 的 schema、entry、run pin、child_command 和实际 terminal exit_code=0。它们不能凭文件格式自行证明外部 tool 记录真实，因此 root 原始调用和后续独立实际审阅仍是证据链的一部分。
++
++## 变异及 Swift 原观察归档
++
++`mutations` 先重核 source manifest、四项 run/tool/原 stdin/stdout/stderr 与嵌入的源 bytes；逐项保存原 bytes 副本后，才 import 固定的纯 oracle。oracle 每例 fresh deepcopy；helper 不另写新的 mutation 语义。
++
++变异输出 manifest schema=`src1b-parent-decoder-inputs-v1`，固定 `mutation_count=15, observation_count=20, configuration_calls=5`。每例有 source.json、frontend.stdout、mutation.json。metadata 保存完整 wire difference（含所有 appended DAG 节点）、原始 static prefix 与 appended 数量、源/响应/实际 exit 来源。没有将多个 wire 变化误记成单字段，也没有修改原 source 以掩盖 tampered exchange。
++
++Swift 独立复算 wire difference、检查原 static prefix、固定 oracle、四份实际导出来源，以及所有输入 pins。每条实际调用前保存 source/stdout；调用后先保存完整 observation，再 assert 匹配。首个不符写 first-failure.json、退出 1；不执行后续案例。成功需 20 decode/5 config 的实际计数和所有输入末次 hash 一致，再写 result.json。
++
++新 helper 与 Swift 本身不承担 OS 生命周期/总预算监督；root 的独立 bounded runner 必须覆盖文件读写、末次 hash、报告 close/flush 和实际 outer0。准备、四次导出、变异和 Swift 观察均先审源再首次执行，分别保原首次失败。不能用已有 Python 70 方法通过替代新 Swift 结果。
++
++这些控制没有创建 parent/child Ledger、原 requester、工具 FileHandle、worker 或模型，不能声称响应真实交付、HostClose 完成、十个 B 情境通过或完整语言健全性。

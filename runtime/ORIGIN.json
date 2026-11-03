@@ -1,0 +1,730 @@
+{
+ "schema": "runtime-origin-v1",
+ "imported_at_utc": "2026-11-03T04:03:07.944949+00:00",
+ "source_path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/runtime",
+ "source_note": "byte-identical copy of the latest vendored runtime (SRC1 B parent-host-close experiment); .build and __pycache__ excluded",
+ "file_count": 144,
+ "mismatches": [],
+ "files": [
+  {
+   "path": "Package.swift",
+   "bytes": 2829,
+   "sha256": "597fdd472f4f13cdc3436f6dc6c06750afd578ba7fd8984cc77314987b5697c5"
+  },
+  {
+   "path": "Sources/BRCReplayCLI/Main.swift",
+   "bytes": 211,
+   "sha256": "8f9464801b81c1a2b637a526378c5a54ee257307e43f4dc341c02c218fe36cfb"
+  },
+  {
+   "path": "Sources/CM2CLI/CPUControls.swift",
+   "bytes": 42761,
+   "sha256": "bc8cec5ef8b0cf201511d6f163a124b9810b091d90fa192221c46e1f4ec5673d"
+  },
+  {
+   "path": "Sources/CM2CLI/CompilerBridge.swift",
+   "bytes": 16184,
+   "sha256": "ccb5758816336a14a9d9394657c1ebc110ffdb36c3fa5f201a4778d717f7a3ea"
+  },
+  {
+   "path": "Sources/CM2CLI/Entrypoint.swift",
+   "bytes": 24483,
+   "sha256": "6ae311bbd84612f26a07305ade86355b29ba184e4e984123340bcc1054da17d2"
+  },
+  {
+   "path": "Sources/CM2CLI/ExternalDemandHost.swift",
+   "bytes": 1509,
+   "sha256": "8ca4d9752c3308996671f5b104ed09759479e421d6a5712c3d359bdf1bcd5c66"
+  },
+  {
+   "path": "Sources/CM2CLI/ExternalDemandSourceControls.swift",
+   "bytes": 36419,
+   "sha256": "5b2304249bc98e6e75642f97920ee7e0dbc57192722408be9e0b27d14ff8c217"
+  },
+  {
+   "path": "Sources/CM2CLI/FrontendLifetime.swift",
+   "bytes": 8037,
+   "sha256": "641591d2bbae3e82f70394b9713afe030cdc2daca0c88ec689cc3eafa4639d98"
+  },
+  {
+   "path": "Sources/CM2CLI/HostSupport.swift",
+   "bytes": 13160,
+   "sha256": "98ac9740978ed6398f912689595ce15a6a48e580ef67ea950e1a5d9e1de40961"
+  },
+  {
+   "path": "Sources/CM2CLI/JoinedResultDeliveryControls.swift",
+   "bytes": 36456,
+   "sha256": "9a478f4dcbc89cbb33b9d9ec2a52c7346677f5c2778a7ee2c1fc36411f1fc539"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentCompositionCPUFixtures.swift",
+   "bytes": 11212,
+   "sha256": "4a01ca66b508c35b3ab6bd8161ca22b5fb3aafb52763e13eeed9c5d5e0a1448e"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentCompositionControls.swift",
+   "bytes": 32778,
+   "sha256": "cefe9f4c04c7115089eff3590eef2d3984383039ee82c824d5d35ce747f1a95d"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentCompositionRoot.swift",
+   "bytes": 5683,
+   "sha256": "549b06595d03da7c36063c51e97d63a2540407639536f6939b5ad584d29f9760"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentEntryRoots.swift",
+   "bytes": 2846,
+   "sha256": "b505870aeb0e0e95da026426d22afc014149cb06280e6857a3473ef268759454"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentEntrypoint.swift",
+   "bytes": 13319,
+   "sha256": "517797976dfe6165c42e186308eb987ccd8518487b8f35234793cda4c435d432"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentHostOptions.swift",
+   "bytes": 4317,
+   "sha256": "6e072b69d290e17b6fe6a79f91f28762fe7e64e2c1b1ce0b6178bc2e9299fafb"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentNativeBoundaryControls.swift",
+   "bytes": 54908,
+   "sha256": "1cd4c7e38be37bf3feb98b34d8e406862d92a609bc774b92bf339ceda43cd77a"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentNativeToolControls.swift",
+   "bytes": 9663,
+   "sha256": "30f61c5699eb176389fff0de54ba87bf41273a1114f3b6d92a40c621760ccc36"
+  },
+  {
+   "path": "Sources/CM2CLI/ParentServiceHost.swift",
+   "bytes": 21132,
+   "sha256": "3f3109aa6d3023baec33c08ae13fc5c47f082a13ce0b24e808f69ecadd69fb4c"
+  },
+  {
+   "path": "Sources/CM2CLI/Reference.swift",
+   "bytes": 6262,
+   "sha256": "d0b0fc81a22d6a79428fbc6c3b09387457f620f89a22a345a1f11c8c5049a597"
+  },
+  {
+   "path": "Sources/CM2CLI/SourceResponseControls.swift",
+   "bytes": 53890,
+   "sha256": "e208943ffb2563b69a35b4c9e800cc45df2ead108618d7b6637b87f1a3e71a5a"
+  },
+  {
+   "path": "Sources/CM2CLI/VocabParserNativeControls.swift",
+   "bytes": 13812,
+   "sha256": "175e53e6779521ada044797ba484a7285fc8d5d1ee07aad31fdb720e2dd7c5fd"
+  },
+  {
+   "path": "Sources/CM2CLI/VocabSymbolTool.swift",
+   "bytes": 13920,
+   "sha256": "513084f9e6c05baf742a8aa7f61ca94d934675cf3a7150177df1291d965e9fbd"
+  },
+  {
+   "path": "Sources/CM2CLI/baseline-origin.json",
+   "bytes": 719,
+   "sha256": "031da379b3bde4b0826ffa8e1c23cbacaf20125dedc249c7eee7ca264b488267"
+  },
+  {
+   "path": "Sources/CM2CPU/Main.swift",
+   "bytes": 99,
+   "sha256": "7664212c632f9399d340fb117c39f5b1ef5a3015048cb9fa00a3f3ea6f6f23c3"
+  },
+  {
+   "path": "Sources/CM2Checked/Main.swift",
+   "bytes": 107,
+   "sha256": "ce0d9d975901b8321b3d9babbb143da3e6103983e9dedd84328879eab4369d82"
+  },
+  {
+   "path": "Sources/CM2Deterministic/Main.swift",
+   "bytes": 125,
+   "sha256": "331c4d38302681af7ea0d65f2683304fc1b4368a5039d45638743f9e735f4b64"
+  },
+  {
+   "path": "Sources/CM2Reference/Main.swift",
+   "bytes": 111,
+   "sha256": "0ce366ac54e3bb7039ac01509a9d20143c3ff9d66df354ccd653f6e39dca86c3"
+  },
+  {
+   "path": "Sources/CWCReplayCLI/Main.swift",
+   "bytes": 211,
+   "sha256": "96e3f42e364e606b6b355c2bb49e5ef8b4c10d72a4e89252fc5a9c2c18be3544"
+  },
+  {
+   "path": "Sources/EBD1NativeCPU/Main.swift",
+   "bytes": 1020,
+   "sha256": "344320b0a858bc9341cc27a1a8298f57419590f9adb501685f563bb88de9c8b0"
+  },
+  {
+   "path": "Sources/EBD1SourceCPU/Main.swift",
+   "bytes": 272,
+   "sha256": "0af4a094cbd4c48be8b9e4663c14e85c858a715734e58ac2b3ef140e42698095"
+  },
+  {
+   "path": "Sources/JRD1CPU/Main.swift",
+   "bytes": 197,
+   "sha256": "749247ea73fba65126da11b2dfb7c522275b0f329f21169f7d83fe6ca1a9c835"
+  },
+  {
+   "path": "Sources/MLXTransport/BRCReplay.swift",
+   "bytes": 27395,
+   "sha256": "beecfcc6ce28052a4df14a6c184f980b0e3a945b9c98246fd35711007c875b24"
+  },
+  {
+   "path": "Sources/MLXTransport/CWCConversion.swift",
+   "bytes": 10188,
+   "sha256": "c463371debba2023f472ddbd111b844586e9894d4b12afcb8e325276a4b673da"
+  },
+  {
+   "path": "Sources/MLXTransport/CWCReplay.swift",
+   "bytes": 23807,
+   "sha256": "161e1cb9fa2ef323296166a3183fdeead402dd333554da37126dd64794212d05"
+  },
+  {
+   "path": "Sources/MLXTransport/Driver.swift",
+   "bytes": 32703,
+   "sha256": "eb06d9fb2283fecbf55e54093e9d75e19b6d0cca8394fba41d0203a84d3a5e37"
+  },
+  {
+   "path": "Sources/MLXTransport/HRCConversionObservation.swift",
+   "bytes": 6819,
+   "sha256": "d657a2f2e98fd7ce3d2fdd38ea7fadef658a3266905be7a84b5919402228875d"
+  },
+  {
+   "path": "Sources/MLXTransport/HostFileRoot.swift",
+   "bytes": 2505,
+   "sha256": "868cba40659a10ade15770c00a6e8f3679da59691ffffdf02c875e5c065be3c8"
+  },
+  {
+   "path": "Sources/MLXTransport/ServiceControls.swift",
+   "bytes": 5543,
+   "sha256": "6433c98e01e08b5bf158810c66cb0b777fb8f54bc19f5683668087801f873ffd"
+  },
+  {
+   "path": "Sources/MLXTransport/Session.swift",
+   "bytes": 64603,
+   "sha256": "caf98318bbe68c0cd05c80c49ab9724aef2f633c4fa2ddf807448275c0ab9bf8"
+  },
+  {
+   "path": "Sources/MLXTransport/Support.swift",
+   "bytes": 18427,
+   "sha256": "822764116cd527393777a20fbc89a379366c5b717ca77e85df39feaec8d7192e"
+  },
+  {
+   "path": "Sources/RuntimeCore/BRCReplayCore.swift",
+   "bytes": 5532,
+   "sha256": "9ea9295ed7b016c0f259a16ff9757aaa70c26e70563e52e2df6104aaf827cd6e"
+  },
+  {
+   "path": "Sources/RuntimeCore/ExternalDemandControl.swift",
+   "bytes": 35284,
+   "sha256": "c6d4debb2fd4cc63133826e4b54b8372b7ccc066523122e18711df23a65b53c4"
+  },
+  {
+   "path": "Sources/RuntimeCore/ExternalDemandNativeControls.swift",
+   "bytes": 27450,
+   "sha256": "86f7e6dfb5a4c064ccca5b3d2b07fbebbaa066ccfa0b4797167f5eaf5759914c"
+  },
+  {
+   "path": "Sources/RuntimeCore/ExternalResultDeliveryPolicy.swift",
+   "bytes": 323,
+   "sha256": "1ee3bb6d880c6dd4746894adb934fa50de3634d808f19b99fc93838cb942008b"
+  },
+  {
+   "path": "Sources/RuntimeCore/ForkPolicy.swift",
+   "bytes": 3323,
+   "sha256": "7689729f49046400b51cea6d315d20b49ae6e04dacf80daa2ef56a8a01d3bca3"
+  },
+  {
+   "path": "Sources/RuntimeCore/HostComposition.swift",
+   "bytes": 18711,
+   "sha256": "7b8adcf004c82d028c0edda7aec7e1c1ce507612a30993cd55bac346b007a8c2"
+  },
+  {
+   "path": "Sources/RuntimeCore/JSON.swift",
+   "bytes": 13856,
+   "sha256": "82dc211aafcb91104b487ae3aa019a0814bb3a677470d533c91921976f23524d"
+  },
+  {
+   "path": "Sources/RuntimeCore/Ledger.swift",
+   "bytes": 143154,
+   "sha256": "7ec30b1f724d483cf14eafa2a8cae08868fb39b617ca3bc1c3c89c45b3eb0494"
+  },
+  {
+   "path": "Sources/RuntimeCore/MLXBackend.swift",
+   "bytes": 9675,
+   "sha256": "d1c66c3cce6ff2afa9931ce9d93ea6ea96648357fdf17665d71e40cf1cf5d7d1"
+  },
+  {
+   "path": "Sources/RuntimeCore/MLXEvidence.swift",
+   "bytes": 7386,
+   "sha256": "4ecc14c16a1fe055505e53445d3dc001801606dd697a5fbe9847bf9acf4e55f0"
+  },
+  {
+   "path": "Sources/RuntimeCore/Machine.swift",
+   "bytes": 50858,
+   "sha256": "033f2de91f863948542a0d6e3c0580e48dec187ff6759ebc6a7ec7175d8ad480"
+  },
+  {
+   "path": "Sources/RuntimeCore/Program.swift",
+   "bytes": 63836,
+   "sha256": "e7b982727e272bf34bece17c8554427a3ba6adfb51bf57ac6be0772272ff90c9"
+  },
+  {
+   "path": "Sources/RuntimeCore/PublicationWait.swift",
+   "bytes": 12895,
+   "sha256": "9fb67fbe6160a9b2cd079ae877729869a02813a6d57f4c42d1b9318ca4f89e39"
+  },
+  {
+   "path": "Sources/RuntimeCore/Registration.swift",
+   "bytes": 4541,
+   "sha256": "ebd64550b5f4527306548e072e017cdd37bbc38bfb6a03f228f0b937e3994da7"
+  },
+  {
+   "path": "Sources/RuntimeCore/ReturnServiceControl.swift",
+   "bytes": 23282,
+   "sha256": "19c90810883e8da1316e5acbdb4cf49f4035fae8248763d8178bb77a33e64f09"
+  },
+  {
+   "path": "Sources/RuntimeCore/RuntimeExecutionRoot.swift",
+   "bytes": 11960,
+   "sha256": "c9c898c94e1d56f3074255b3c1af7bf66ac2e8004ab43ddee2fb9bad1777dfd3"
+  },
+  {
+   "path": "Sources/RuntimeCore/ServiceObservation.swift",
+   "bytes": 5378,
+   "sha256": "8017492f133c9233575f2ded948ee21ebc1bec2e68d55481a651b1030de14318"
+  },
+  {
+   "path": "Sources/RuntimeCore/ServiceRegistryRoot.swift",
+   "bytes": 23401,
+   "sha256": "8823f83124defa2f8c42fda9d447e4e42d8f8a6fde41cd6fb93b80c35dd5959c"
+  },
+  {
+   "path": "Sources/RuntimeCore/ToolReadRoot.swift",
+   "bytes": 19059,
+   "sha256": "6b1c9347c456686d4cf98efd35529dcb9a7708a4fefb08ccb4ae2a67d1b8a267"
+  },
+  {
+   "path": "Sources/RuntimeCore/Values.swift",
+   "bytes": 9568,
+   "sha256": "747fde2084e8759d2ab7e30505bd836bffdc0e8858adbd1c90d709a53b162061"
+  },
+  {
+   "path": "Sources/RuntimeCore/Wait.swift",
+   "bytes": 3889,
+   "sha256": "e297136c78794a81208b7ade2db61c7dbe22ac2e69ffc8a31e14740f2f7eeac4"
+  },
+  {
+   "path": "Sources/SRC1BBoundaryCPU/Main.swift",
+   "bytes": 121,
+   "sha256": "4c31ebd8c689d5d001825a4c68d7d9d6c5923ce385bbd5948ec6ec1b621a5bd2"
+  },
+  {
+   "path": "Sources/SRC1BCPU/Main.swift",
+   "bytes": 106,
+   "sha256": "80386d7f537c9837506dba0babd5e3f9258ac97163d3a7b24dddc348fa1ffad9"
+  },
+  {
+   "path": "Sources/SRC1BChecked/Main.swift",
+   "bytes": 114,
+   "sha256": "125a03f02577e709ea8e3ef9514db15c4244343eff46ee27e83b1c715a7ea47b"
+  },
+  {
+   "path": "Sources/SRC1BDecoderCPU/Main.swift",
+   "bytes": 23225,
+   "sha256": "83599804d5427626b5e55acd64dbc48d16b81c8f1fefcc93efc15f962f408219"
+  },
+  {
+   "path": "Sources/SRC1BParserCPU/Main.swift",
+   "bytes": 106,
+   "sha256": "0726f1febc3d8e633f14f799c0f76ecaf59dfd70d573df6220a78f981647ce2d"
+  },
+  {
+   "path": "Sources/SRC1CPU/Main.swift",
+   "bytes": 196,
+   "sha256": "82de1bf8a498ce02d936d933fa0efe045b6c19a45836d099531fcba838f2c91d"
+  },
+  {
+   "path": "Sources/SRC1DecoderCPU/Main.swift",
+   "bytes": 14748,
+   "sha256": "979726451b109cfbea507de148e1403decf3d97d9fbfaa56149a7a5e6a504f79"
+  },
+  {
+   "path": "backend/baseline-origins.json",
+   "bytes": 2263,
+   "sha256": "6bdf802eda00ef0fb73a101627ff55d4d398788c6c1013e0f657fc884e1dd9d3"
+  },
+  {
+   "path": "backend/cm1-transport-diff.patch",
+   "bytes": 98481,
+   "sha256": "6a20ff07840e5eccf35fa5e7e72825e450747e1f9ca9031b2ee8fcb10dd967aa"
+  },
+  {
+   "path": "backend/prepare_inputs.py",
+   "bytes": 6729,
+   "sha256": "f87a243e052333671ecf63bc689ac3dde5c101e0a512c7319f1147d2a8f14cc2"
+  },
+  {
+   "path": "backend/run_session.py",
+   "bytes": 21327,
+   "sha256": "49a58dea55507e2c322783d6cbedcfc8fff7e884b65a7c798d1b434a5475de7b"
+  },
+  {
+   "path": "backend/stub_worker.py",
+   "bytes": 6259,
+   "sha256": "22c4b2300e6b3f4804728137d66a06e19c795bdf4e51b8c72d192507949db188"
+  },
+  {
+   "path": "backend/worker.py",
+   "bytes": 28373,
+   "sha256": "8422cb5f67f9d5d70d291a629d02b77a03502e3c8c6b6bf7ea15ad5e4af6b6a4"
+  },
+  {
+   "path": "build-controls/run_build.py",
+   "bytes": 9844,
+   "sha256": "3f67bd4181f77ddef8af196ab01d09c1075b3e83b895256834db18c3bb626dea"
+  },
+  {
+   "path": "build-controls/run_ebd1_build.py",
+   "bytes": 9882,
+   "sha256": "d2eda80eff632a56dd023abf76dc19528bd7ea1c1a5a7a32271c496d4f880002"
+  },
+  {
+   "path": "cpu-controls/build_cpu_sources.py",
+   "bytes": 9376,
+   "sha256": "5486059943669dc3e968c373b08721a3e773a1d7f780012f4f7ce4425af9d4c3"
+  },
+  {
+   "path": "decoder-controls/AUTHOR-NOTES.md",
+   "bytes": 7789,
+   "sha256": "f7e53b0179760e3e56ed942795f3f734dd2d25788d1aca76194688b77be549c9"
+  },
+  {
+   "path": "decoder-controls/PARENT-DECODER-INTERFACE-v1.md",
+   "bytes": 8795,
+   "sha256": "5bcebd146ee04b49c406160d25bc9ca8fc2b01495e2a9dcdc5b9a76822342256"
+  },
+  {
+   "path": "decoder-controls/build_offer_only_source.py",
+   "bytes": 2200,
+   "sha256": "2f664be4d968285d89386e29be26f5309ecb22c96b723c2806af0b12ebdfce38"
+  },
+  {
+   "path": "decoder-controls/parent-decoder-exact.diff",
+   "bytes": 64820,
+   "sha256": "c786920305cf64e514f5fe2c2d4f7ff13f7a903de67b42ef3462991053f7a826"
+  },
+  {
+   "path": "decoder-controls/parent-decoder-origin-v1.json",
+   "bytes": 5815,
+   "sha256": "642d9240e4858f902aa7cf1527e2fb8cc3672efdb79a3052097cc9f36975930c"
+  },
+  {
+   "path": "decoder-controls/parent_decoder_inputs_v1.py",
+   "bytes": 17012,
+   "sha256": "aad5f49c7b58900abc313cf1f9b4f7a17561af976fdd4530b4701f28eead52f4"
+  },
+  {
+   "path": "decoder-controls/source-pins-v1.json",
+   "bytes": 1770,
+   "sha256": "71e52073e80f34e7922734e107aeb1783d6695ce82c994d58aa25960e9da1615"
+  },
+  {
+   "path": "decoder-controls/source_response_mutations.py",
+   "bytes": 27286,
+   "sha256": "ff639209f326ec36e11bf7b38b702deca1dd04c9d24879509f4fb74e03ab22b6"
+  },
+  {
+   "path": "frontend/baseline-origins.json",
+   "bytes": 11991,
+   "sha256": "c0a2ad9905845b380f37af7514ac6fa07f16c8957b5248f389e5bdc81b8d3aa8"
+  },
+  {
+   "path": "frontend/cm1-diff.patch",
+   "bytes": 6755,
+   "sha256": "7a5aa9efb94392c80b9415c69f2b0700b5214888712dceb0d0b1ef12295fb488"
+  },
+  {
+   "path": "frontend/export.py",
+   "bytes": 925,
+   "sha256": "41b5068e07088de80244726aec42c49f4840e0fc38f6d26c40e3667821c7913c"
+  },
+  {
+   "path": "frontend/export_parent.py",
+   "bytes": 940,
+   "sha256": "28b67fc423ffdaba9cebb36071d8e496f4558507e1658ec3ec5528d37153779b"
+  },
+  {
+   "path": "frontend/p8closure/__init__.py",
+   "bytes": 79,
+   "sha256": "f2967470d77b7f1995eb20121d1cd30b8ce48776912c696d11b5508185eaa621"
+  },
+  {
+   "path": "frontend/p8closure/caller.py",
+   "bytes": 5083,
+   "sha256": "24a8b9ac6df6c17a3e08c512ce25760d1090cf399bc09d8f6af41b781b84fe8f"
+  },
+  {
+   "path": "frontend/p8closure/formation.py",
+   "bytes": 7554,
+   "sha256": "57dabb31559db523db7de556afbf54acfd67504296c2641eeb31e75d78083828"
+  },
+  {
+   "path": "frontend/p8closure/projections.py",
+   "bytes": 5032,
+   "sha256": "893ec15f0aabde9d7ff21f96593d38e431cfad17f6342fc84dae93ef1c50dd92"
+  },
+  {
+   "path": "frontend/p8closure/qualified.py",
+   "bytes": 3874,
+   "sha256": "77652adf7a0d3f64c457d185ee22943e57b92908aac7cfa32fe84bcf9d640113"
+  },
+  {
+   "path": "frontend/p8closure/requirements.py",
+   "bytes": 8559,
+   "sha256": "8fa846b7f45f4792ff48b9634bb13afbb388f2b3df424e7cd1c9b721793ab3ab"
+  },
+  {
+   "path": "frontend/p8closure/schema.py",
+   "bytes": 26759,
+   "sha256": "ca83e80d33f7ae5db51fa6e8b000d28b071dcdcc20fecd7e3d0a777d36f61687"
+  },
+  {
+   "path": "frontend/p8closure/support.py",
+   "bytes": 16375,
+   "sha256": "8a8e4ed052c6bbeb93d380cab593dfa427eb0e4edfb9c66bc8b335d7d5b67306"
+  },
+  {
+   "path": "frontend/p8foundation/__init__.py",
+   "bytes": 143,
+   "sha256": "242e69d1c101106976a7723e9c353fef4e7cbd18df41bf3d866e1695f576614d"
+  },
+  {
+   "path": "frontend/p8foundation/algebra.py",
+   "bytes": 11702,
+   "sha256": "fcbe7ccd57ab1a203a2a330a9ace6416b2c8f8522e00035edc01a4138a06096b"
+  },
+  {
+   "path": "frontend/p8foundation/entail.py",
+   "bytes": 11529,
+   "sha256": "f03724bb06dbf47da30a0542bf9bc4fa1ad1ae9eda53a795e13a25d66330e5bd"
+  },
+  {
+   "path": "frontend/p8foundation/model.py",
+   "bytes": 3631,
+   "sha256": "2423fa44fe70ecf8455af86cf905748ab54cfeaece83c7b01b4c802d058cc178"
+  },
+  {
+   "path": "frontend/p8foundation/resolve.py",
+   "bytes": 12977,
+   "sha256": "f2d6748f3341a508cfb684ee6140452f7ad1662c6bf353df61d50d1de7e88ae5"
+  },
+  {
+   "path": "frontend/p8source/__init__.py",
+   "bytes": 78,
+   "sha256": "e0aff93cad0a6bc9cef22a25fc39614b43e1f2548860a41bed98969f9e8b7abf"
+  },
+  {
+   "path": "frontend/p8source/annotations.py",
+   "bytes": 3355,
+   "sha256": "63c79b031d49581e6ac50095ca0a897f0cd7409ccf63a6239f4bc45604ed843c"
+  },
+  {
+   "path": "frontend/p8source/binding.py",
+   "bytes": 2014,
+   "sha256": "f52e5b1890d1494b97a51a4f0ccb8352cc6a6de8533dbb7567fd51dfd5d84006"
+  },
+  {
+   "path": "frontend/p8source/body.py",
+   "bytes": 62097,
+   "sha256": "cec74f4e90e190018b8d2790bccbd2d3eea8f5fa74d3d8bc3451fb4b20eda106"
+  },
+  {
+   "path": "frontend/p8source/calls.py",
+   "bytes": 6220,
+   "sha256": "1ece3ba19938d88cdecf5c78a87608ed38934d7c0d1b1a4b286991144b144ebc"
+  },
+  {
+   "path": "frontend/p8source/cli.py",
+   "bytes": 3461,
+   "sha256": "08dbe72faa2776aa747a0faa6f1714b5dbb8beee8737a5d2fc1789a11adf3258"
+  },
+  {
+   "path": "frontend/p8source/entry.py",
+   "bytes": 8710,
+   "sha256": "0a085c350bf695b2528e7a5672d29714dda7509657fa9cef6377f5675a6230c3"
+  },
+  {
+   "path": "frontend/p8source/execution.py",
+   "bytes": 15879,
+   "sha256": "26bdd6da3c6fc59082385d4c7ff493913d4ea2f30eab44dc5080ca2511355828"
+  },
+  {
+   "path": "frontend/p8source/fork.py",
+   "bytes": 8767,
+   "sha256": "bf73322f63b8a0f61554bd82383f16d57cf3baa66247e0a099b6e05018bf0aaa"
+  },
+  {
+   "path": "frontend/p8source/generation.py",
+   "bytes": 17720,
+   "sha256": "ecc4c48204b6103df5d4879433c9e2b36eb2ad8d79ebb1f185fad0fa849fcac9"
+  },
+  {
+   "path": "frontend/p8source/inference.py",
+   "bytes": 28061,
+   "sha256": "f0401ebd3513450e79fcdab17edb504f016bf6ff93895910f850dec767d073a5"
+  },
+  {
+   "path": "frontend/p8source/producer.py",
+   "bytes": 9815,
+   "sha256": "24b106f813ad7bf25d56efb9c0786cc980e6865cd7729170e4e2bf7befe2e69c"
+  },
+  {
+   "path": "frontend/p8source/sigma.py",
+   "bytes": 8736,
+   "sha256": "42326a431facd00f9d4f15ea0792e5d7804446135ca216dd66ddf550538da526"
+  },
+  {
+   "path": "frontend/p8source/source_schema.py",
+   "bytes": 8531,
+   "sha256": "6c3f75dc087f10fb3c07b86f2917e65edb968d9dd335bac8a8e3ebc01be5b8b4"
+  },
+  {
+   "path": "frontend/p8static/__init__.py",
+   "bytes": 81,
+   "sha256": "a537635dd12099cca7f60bbd1b6d4a7e06d3202f95ac87c8fc5368eb0fc65abc"
+  },
+  {
+   "path": "frontend/p8static/parser.py",
+   "bytes": 11019,
+   "sha256": "b856cb74312febc93db4332b808deb161446b15f19c218cd4ce7a0f7c9cd6957"
+  },
+  {
+   "path": "frontend/p8static/syntax.py",
+   "bytes": 4814,
+   "sha256": "932c27b0477b291e30cfa7ebf5d565d3bc859ef2e711366c1b07abf3eff39b35"
+  },
+  {
+   "path": "frontend/parent_decoder_mutations.py",
+   "bytes": 6539,
+   "sha256": "90dd52dae21c9383ea23638a8d0cea777fe3c5a6d2917b09ef04325ecaad01d5"
+  },
+  {
+   "path": "frontend/parent_fixture.py",
+   "bytes": 2869,
+   "sha256": "7003a59b29f8ee326181ee8eacd3b0212330522b453deade87947c63481436b8"
+  },
+  {
+   "path": "frontend/src1-exact.diff",
+   "bytes": 11710,
+   "sha256": "e7d709ca006019bb2eaa9e0cde306af332855891fe22bfabc3fb4dc69c4f8403"
+  },
+  {
+   "path": "frontend/src1-origin.json",
+   "bytes": 5767,
+   "sha256": "77912fe015ba584d0b0a7284566b92c038b0be59cd53695f13054c69e7698fa0"
+  },
+  {
+   "path": "frontend/src1b-author-count-note-v1.json",
+   "bytes": 652,
+   "sha256": "dbee93a26d1c9d45c7fdda9aee040f25a3b4604bbf7b79ac2eb92b94cb86623e"
+  },
+  {
+   "path": "frontend/src1b-exact.diff",
+   "bytes": 61690,
+   "sha256": "e6543c7cc855eeb61f053ee9f54c4a898d85844f6c868490634e3aba475ef806"
+  },
+  {
+   "path": "frontend/src1b-origin.json",
+   "bytes": 15485,
+   "sha256": "22dc5ab3f1235a7d5a0d28a3300a0eb9e1f7cc74b47987660f755afc56d25cd9"
+  },
+  {
+   "path": "frontend/test_external_request.py",
+   "bytes": 11706,
+   "sha256": "dc16dc270de0aa37c7b9b5999bd3b64f7372320ca6b2fc4bc5da56a4b10d8d3d"
+  },
+  {
+   "path": "frontend/test_parent_host.py",
+   "bytes": 10351,
+   "sha256": "d9cc0c1b92504b6b18388b96fcb0175e35a8eca16d23967978f9f10dd31a6b04"
+  },
+  {
+   "path": "frontend/test_response_offer.py",
+   "bytes": 18887,
+   "sha256": "c578f3c5fc8afa0c13a4e4c1da5359a7b48e303b44c0289db951c91df456ce03"
+  },
+  {
+   "path": "orchestration/run_static_first.py",
+   "bytes": 7750,
+   "sha256": "d8136a2085d02dc18a72c039e95a404d62413a5fe16631dde37c9476d7774fb1"
+  },
+  {
+   "path": "programs/a2_constructors.py",
+   "bytes": 8855,
+   "sha256": "ce3b3ba476229cfee0e6cbd26daebcf5bad89c923f6d51491530dfab2a053321"
+  },
+  {
+   "path": "programs/build_cm1_programs.py",
+   "bytes": 14971,
+   "sha256": "36e3e2ea41400de2c271a6df938325ae98c6ca5ac2232155ffd082a266d120e0"
+  },
+  {
+   "path": "programs/build_cm2_programs.py",
+   "bytes": 19637,
+   "sha256": "bdfc3e50af02059a74a43e56c58cc61ef9bf755a6ddb8d1d87103053d5878743"
+  },
+  {
+   "path": "programs/build_external_demand_cpu_programs.py",
+   "bytes": 4073,
+   "sha256": "88fe33f4dfb0f0a0b498b70ee94d10840b78843d414d8c0537c1a918605e77f5"
+  },
+  {
+   "path": "programs/build_external_demand_programs.py",
+   "bytes": 4792,
+   "sha256": "cdd62ce07eab130e36887a049d79e5b2d1b6e40b4da699a4e82f304bb6cca8ea"
+  },
+  {
+   "path": "programs/build_parent_composition_cpu_programs.py",
+   "bytes": 3632,
+   "sha256": "4d99278c10f169dced3d91fc941626ae9d7fe3613e6e5ac9e6355c5ebc94d501"
+  },
+  {
+   "path": "programs/build_parent_native_boundary_programs.py",
+   "bytes": 4640,
+   "sha256": "ca6e5a66f9e95f2129a142507556172f158fb8676c75f8b60c8b821a0dde5d7c"
+  },
+  {
+   "path": "programs/build_source_response_programs.py",
+   "bytes": 8268,
+   "sha256": "541d1e807f9717bd4c4fc9832860c472af6bce6118bb856352a9d2c9baec8ee9"
+  },
+  {
+   "path": "runtime-baseline-origins.json",
+   "bytes": 3319,
+   "sha256": "a9cd93de495dc0465965bb1ac5a2ed8815a1d2c0274eff6d462f9e882f11f8ed"
+  },
+  {
+   "path": "static-controls/check_open.py",
+   "bytes": 1063,
+   "sha256": "aee56d6b1f6eb27e736d0bb13a7bb7d9491577a72755ffc5cff6537e55ab1149"
+  },
+  {
+   "path": "static-controls/cm1-to-cm2.diff",
+   "bytes": 75475,
+   "sha256": "c06ef1a623cdcb774ec0fa99637364ca597ad29b7555ba9ba50cee909d4736d5"
+  },
+  {
+   "path": "static-controls/run_static.py",
+   "bytes": 24433,
+   "sha256": "82e63e4a34c3c0ed8bf67de52b88df4eac9e3390b578e1d27c0c7ff49a28b19c"
+  },
+  {
+   "path": "static-controls/source-pins-v1.json",
+   "bytes": 4178,
+   "sha256": "398a36f41c5db048a0e525afb5450c05af4469125d20e60b2e582129d6ad0c45"
+  }
+ ]
+}

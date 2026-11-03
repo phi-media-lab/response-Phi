@@ -1,0 +1,21 @@
+{
+  "shuffle_seed": 20261031,
+  "fault": {
+    "cases": ["a-before-eval", "a-after-eval", "b-after-eval"],
+    "trials": 3,
+    "chunk": 32,
+    "prompt_length": 64,
+    "b_prompt_length": 8
+  },
+  "p3": {
+    "blocks": 10,
+    "modes": ["direct", "hidden", "forwarded"],
+    "competitors": [0, 8],
+    "elements": 65536,
+    "gpu_iterations": 64,
+    "cleanup_passes": 8,
+    "competition_segments": 16,
+    "competition_iterations": 250000,
+    "warmups_per_process": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "purpose": "Initial real-model pilot, not a tail-latency claim",
+  "shuffle_seed": 20261029,
+  "trials_per_configuration": 3,
+  "prompt_length": 512,
+  "b_prompt_length": 32,
+  "warmup": 1,
+  "token_seed": 7,
+  "chunks": [32, 128, 512],
+  "capacities": ["constrained", "relaxed"],
+  "capacity_scope": "logical request reservation; model computation remains serialized"
+}

@@ -1,0 +1,197 @@
+{
+  "schema": "cm1-frontend-baseline-origins-v1",
+  "meaning": "Original copied bytes before CM1 edits; this is not a final-file manifest or execution result.",
+  "excluded": [
+    "frontend/tests/**",
+    "frontend/run_tests.py",
+    ".build/**"
+  ],
+  "files": [
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/export.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/export.py",
+      "bytes": 925,
+      "sha256": "41b5068e07088de80244726aec42c49f4840e0fc38f6d26c40e3667821c7913c"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/__init__.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/__init__.py",
+      "bytes": 79,
+      "sha256": "f2967470d77b7f1995eb20121d1cd30b8ce48776912c696d11b5508185eaa621"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/caller.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/caller.py",
+      "bytes": 5083,
+      "sha256": "24a8b9ac6df6c17a3e08c512ce25760d1090cf399bc09d8f6af41b781b84fe8f"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/formation.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/formation.py",
+      "bytes": 7554,
+      "sha256": "57dabb31559db523db7de556afbf54acfd67504296c2641eeb31e75d78083828"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/projections.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/projections.py",
+      "bytes": 5032,
+      "sha256": "893ec15f0aabde9d7ff21f96593d38e431cfad17f6342fc84dae93ef1c50dd92"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/qualified.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/qualified.py",
+      "bytes": 3874,
+      "sha256": "77652adf7a0d3f64c457d185ee22943e57b92908aac7cfa32fe84bcf9d640113"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/requirements.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/requirements.py",
+      "bytes": 8559,
+      "sha256": "8fa846b7f45f4792ff48b9634bb13afbb388f2b3df424e7cd1c9b721793ab3ab"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/schema.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/schema.py",
+      "bytes": 26718,
+      "sha256": "bed9c065a82a3b9ffa2f633c26def55fe764bd61e3e78caf1552678e3fa875e1"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8closure/support.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8closure/support.py",
+      "bytes": 16375,
+      "sha256": "8a8e4ed052c6bbeb93d380cab593dfa427eb0e4edfb9c66bc8b335d7d5b67306"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8foundation/__init__.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8foundation/__init__.py",
+      "bytes": 143,
+      "sha256": "242e69d1c101106976a7723e9c353fef4e7cbd18df41bf3d866e1695f576614d"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8foundation/algebra.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8foundation/algebra.py",
+      "bytes": 11702,
+      "sha256": "fcbe7ccd57ab1a203a2a330a9ace6416b2c8f8522e00035edc01a4138a06096b"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8foundation/entail.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8foundation/entail.py",
+      "bytes": 11529,
+      "sha256": "f03724bb06dbf47da30a0542bf9bc4fa1ad1ae9eda53a795e13a25d66330e5bd"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8foundation/model.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8foundation/model.py",
+      "bytes": 3631,
+      "sha256": "2423fa44fe70ecf8455af86cf905748ab54cfeaece83c7b01b4c802d058cc178"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8foundation/resolve.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8foundation/resolve.py",
+      "bytes": 12663,
+      "sha256": "77a85a2580ee10d19a5473ab5701d5bda190d26504e0f76bb7c098f50084e85c"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/__init__.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/__init__.py",
+      "bytes": 78,
+      "sha256": "e0aff93cad0a6bc9cef22a25fc39614b43e1f2548860a41bed98969f9e8b7abf"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/annotations.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/annotations.py",
+      "bytes": 3275,
+      "sha256": "57c88ffff6f605c214de49eec503d4109e9f3e3988048781f4acb97f0ab20aaa"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/binding.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/binding.py",
+      "bytes": 1817,
+      "sha256": "9500373254da7c57cbe8672482af2e2a73f3420500d7f6ca68ac75ec82b7de5b"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/body.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/body.py",
+      "bytes": 54595,
+      "sha256": "9f0b5dde269020127b0c8edb9c8d2c8731069ca8b39a6c8737fd12205bcc521e"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/calls.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/calls.py",
+      "bytes": 6220,
+      "sha256": "1ece3ba19938d88cdecf5c78a87608ed38934d7c0d1b1a4b286991144b144ebc"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/cli.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/cli.py",
+      "bytes": 3461,
+      "sha256": "08dbe72faa2776aa747a0faa6f1714b5dbb8beee8737a5d2fc1789a11adf3258"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/entry.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/entry.py",
+      "bytes": 8519,
+      "sha256": "16d52a0313b07809c49f4602b3c237a5cf4963f1771f160117f91d718495b0c3"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/execution.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/execution.py",
+      "bytes": 15416,
+      "sha256": "8ba29a4ce941711236d88ceca485128c72faf2d10b5aa9b8e57573c62b3808e3"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/generation.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/generation.py",
+      "bytes": 17569,
+      "sha256": "ae914e7b80a9fe2573d589a978695bec2d69a68072e2b9d11870304e67d2b4f6"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/inference.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/inference.py",
+      "bytes": 24047,
+      "sha256": "fd43afed02fd9f66dec98606e7be83a43f44270422f685884a658bd9df237793"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/producer.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/producer.py",
+      "bytes": 9799,
+      "sha256": "379b5eae3c4f3c831f56a284c131bf810fb5eb6dcaa480f4dfe01fab1ec7cde7"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/sigma.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/sigma.py",
+      "bytes": 1159,
+      "sha256": "556b61e8b7eedbfc637cd30e19764e15738525acaa29a8de202cc6704a898127"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/source_schema.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/source_schema.py",
+      "bytes": 7316,
+      "sha256": "8e665b7face51ae8bb8bc45a8859a1bd6b3c5f4017a0a89f407d67d904d33d8a"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8static/__init__.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8static/__init__.py",
+      "bytes": 81,
+      "sha256": "a537635dd12099cca7f60bbd1b6d4a7e06d3202f95ac87c8fc5368eb0fc65abc"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8static/parser.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8static/parser.py",
+      "bytes": 10606,
+      "sha256": "4ced677e2482009902677eaf827119f6a690e4510d2a522abf7c689c72f10d33"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8static/syntax.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8static/syntax.py",
+      "bytes": 4814,
+      "sha256": "932c27b0477b291e30cfa7ebf5d565d3bc859ef2e711366c1b07abf3eff39b35"
+    },
+    {
+      "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/programs/build_programs.py",
+      "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/programs/a2_constructors.py",
+      "bytes": 8855,
+      "sha256": "ce3b3ba476229cfee0e6cbd26daebcf5bad89c923f6d51491530dfab2a053321"
+    }
+  ]
+}

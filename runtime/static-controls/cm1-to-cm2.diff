@@ -1,0 +1,1098 @@
+--- CM1/frontend/p8source/source_schema.py
++++ CM2/frontend/p8source/source_schema.py
+@@ -20,6 +20,7 @@
+    "new_owner":("value","names","name","body"),
+    "scope":("names","name","body"), "run":("owner","names","name","body"),
+    "produce":("scope","kernel","argument","names","cleanup","result_name","control_name","next"),
++   "fork":("scope","names","job","result_name","control_name","next"),
+    "request_cancel":("control","next")}}
+ 
+ CHILDREN = {
+@@ -48,7 +49,8 @@
+ 
+ GENERATION_SORTS={"new_owner":("Size","Owner"), "scope":("Scope","Region","Invocation"),
+                   "run":("Epoch","Scope","Region","Invocation"),
+-                  "produce":("Job","Task","Invocation","Region","Access","Access","Region")}
++                  "produce":("Job","Task","Invocation","Region","Access","Access","Region"),
++                  "fork":("Job","Task","Invocation","Region")}
+ 
+ 
+ def source_children(raw,family):
+@@ -59,6 +61,9 @@
+     if (family,tag)==("command","produce"):
+         return ((("scope",),"value",raw["scope"]),(("argument",),"value",raw["argument"]),
+                 (("cleanup","body"),"command",raw["cleanup"]["body"]),(("next",),"command",raw["next"]))
++    if (family,tag)==("command","fork"):
++        return ((("scope",),"value",raw["scope"]),(("job","body"),"command",raw["job"]["body"]),
++                (("next",),"command",raw["next"]))
+     return tuple(((key,),kind,raw[key]) for key,kind in CHILDREN.get((family,tag),()))
+ 
+ 
+@@ -89,6 +94,10 @@
+         old.ident(raw["cleanup"]["parameter"]["name"],"cleanup parameter name")
+         for name in old.sequence(raw["cleanup"]["captures"],"cleanup captures"): old.ident(name,"cleanup capture")
+         require(raw["result_name"]!=raw["control_name"],"PRODUCE result/control binders must differ")
++    if (family,tag)==("command","fork"):
++        old.obj(raw["job"],{"captures","result","body"},"fork job")
++        for name in old.sequence(raw["job"]["captures"],"fork captures"): old.ident(name,"fork capture")
++        require(raw["result_name"]!=raw["control_name"],"FORK result/control binders must differ")
+     if (family,tag)==("expression","op"):
+         old.sequence(raw["arguments"],"operation arguments")
+     if family == "value" and tag in ("bool","nat","word"):
+--- CM1/frontend/p8source/binding.py
++++ CM2/frontend/p8source/binding.py
+@@ -9,6 +9,9 @@
+     if family == "value" and tag == "lambda":
+         return free_terms(raw["body"]) - {raw["parameter"]["name"]}
+     if family == "command":
++        if tag=="fork":
++            return (free_terms(raw["scope"],"value")|free_terms(raw["job"]["body"])|
++                    (free_terms(raw["next"])-{raw["result_name"],raw["control_name"]}))
+         if tag=="produce":
+             cleanup=raw["cleanup"]
+             return (free_terms(raw["scope"],"value")|free_terms(raw["argument"],"value")|
+--- CM1/frontend/p8source/body.py
++++ CM2/frontend/p8source/body.py
+@@ -412,6 +412,9 @@
+         if tag=="produce":
+             from .producer import check_produce
+             return check_produce(self,raw,state,path,expected)
++        if tag=="fork":
++            from .fork import check_fork
++            return check_fork(self,raw,state,path,expected)
+         if tag=="request_cancel":
+             from .producer import check_cancel
+             return check_cancel(self,raw,state,path,expected)
+--- CM1/frontend/p8source/annotations.py
++++ CM2/frontend/p8source/annotations.py
+@@ -46,6 +46,7 @@
+     if family=="value" and raw[family]=="var": direct=[raw["name"]]
+     if family=="value" and raw[family]=="lambda": direct=raw["captures"]
+     if family=="command" and raw[family]=="produce": direct=raw["cleanup"]["captures"]
++    if family=="command" and raw[family]=="fork": direct=raw["job"]["captures"]
+     for name in direct:
+         bid,typ=env[name];(copy if copyable(typ) else move).append(bid)
+     record=node("annotation","source",site=checker.site(row["path"]),node_kind=family+":"+raw[family],
+--- CM1/frontend/p8source/execution.py
++++ CM2/frontend/p8source/execution.py
+@@ -13,7 +13,7 @@
+ 
+ RESPONSE="p8-runtime-frontend-response-v1"
+ PROGRAM="p8-runtime-checked-program-v1"
+-PROFILE="cm1-mlx-prefill-owner1-v1"
++PROFILE="cm2-mlx-prefill-fork-owner1-v1"
+ 
+ class ProfileError(Exception):
+     def __init__(self,code,message,path=()):
+@@ -101,7 +101,7 @@
+         if role=="capture":
+             index=path[-1]
+             path=path[:-3]
+-            if path and path[-1]=="cleanup": path=path[:-1]
++            if path and path[-1] in ("cleanup","job"): path=path[:-1]
+         elif role in ("parameter","cleanup-parameter"):
+             path=path[:-2]
+             if role=="cleanup-parameter": path=path[:-1]
+@@ -162,6 +162,7 @@
+             if identity not in binding_ids: bindings.append(item);binding_ids[identity]=item
+         capture=[]
+         names=raw["captures"] if family=="value" and raw[family]=="lambda" else raw["cleanup"]["captures"] if family=="command" and raw[family]=="produce" else []
++        if family=="command" and raw[family]=="fork": names=raw["job"]["captures"]
+         env={n:(b,t) for n,b,t in record.get("environment")}
+         for index,name in enumerate(names):
+             b,t=env[name]
+@@ -180,7 +181,7 @@
+                 # label or accepted as an externally supplied release proof.
+                 frame["backend_return_contract"]=None if contract is None else dict(contract.fields)
+         generation=None
+-        if family=="command" and raw[family] in ("new_owner","scope","run","produce","unpack"):
++        if family=="command" and raw[family] in ("new_owner","scope","run","produce","fork","unpack"):
+             tag=raw[family];detail=d.get("detail")
+             interface=detail.get("opening").get("interface") if tag=="unpack" else detail.get("interface")
+             refs=[Free(n["sort"],n["name"]) for n in raw["names"]]
+--- CM1/frontend/p8source/inference.py
++++ CM2/frontend/p8source/inference.py
+@@ -280,6 +280,25 @@
+                 return True
+             self.deferred.append((known_control,"CANCEL needs complete Control job",False))
+             return self.command(raw["next"],env,state,result)
++        if tag=="fork":
++            from .fork import fork_world
++            scope=self.value(raw["scope"],env,state);self.dependent.append(scope)
++            path=self.context_path("fork");job=raw["job"]
++            require(all(name in env for name in job["captures"]),"unbound fork capture")
++            def known_fork(default=False):
++                typ=deref(scope)
++                if isinstance(typ,Hole): return False
++                def parent_context(): return fork_world(self.checker,raw,self.refresh(state),path,typ)[0]
++                def child_context(): return fork_world(self.checker,raw,self.refresh(state),path,typ)[1]
++                parent=self.context(parent_context);child=self.context(child_context)
++                _,_,refs,_,result_type,_=fork_world(self.checker,raw,self.refresh(state),path,typ)
++                self.command(job["body"],{name:env[name] for name in job["captures"]},child,result_type)
++                nxt=dict(env);nxt[raw["result_name"]]=node("type","Shared",job=refs[0],payload=result_type)
++                nxt[raw["control_name"]]=node("type","Control",job=refs[0])
++                self.command(raw["next"],nxt,parent,result)
++                return True
++            self.deferred.append((known_fork,"FORK needs complete Scope",False))
++            return result
+         if tag=="produce":
+             from .producer import producer_world
+             scope=self.value(raw["scope"],env,state);self.dependent.append(scope)
+--- /dev/null
++++ CM2/frontend/p8source/fork.py
+@@ -0,0 +1,124 @@
++"""Ordinary FORK: complete static capture transfer, not runtime admission."""
++from p8foundation.model import Binder, Decision, RNode, node, require
++from p8foundation.resolve import Resolver
++from p8closure.schema import Schema
++from p8closure.formation import form_world, form_type, form_effect, form_interface
++from p8closure.support import Caller, copyable, stable, support_of
++from p8closure.requirements import ProofContext, caller_key, ktrue, holding, require_proof, close_refs
++from .binding import free_terms
++from .generation import fresh_names, close_interface, close_generated_body
++
++SORTS = ("Job", "Task", "Invocation", "Region")
++
++
++def proof_tree(value):
++    # Decisions are dataclasses, not bindable RNodes. Convert the entire finite
++    # evidence tree before closing hidden skolems; do not leak private witnesses.
++    if isinstance(value, Decision):
++        return node("proof", "decision", outcome=value.outcome, rule=value.rule,
++                    details=proof_tree(value.details), premises=proof_tree(value.premises))
++    if isinstance(value, tuple): return tuple(proof_tree(v) for v in value)
++    if isinstance(value, RNode): return RNode(value.family, value.tag, tuple((k, proof_tree(v)) for k,v in value.fields))
++    return value
++
++
++def admit_support(world, target_region, support):
++    """Universal interface proof over target lifetime, never parent ResHold."""
++    if isinstance(support, Binder):
++        require(support.kind == "support-hidden", "FORK hidden support binder")
++        inner, body, refs = form_interface(support, world, "fork_capture")
++        evidence = admit_support(inner, target_region, body)
++        return Binder("fork-capture-hidden", support.sorts, support.facts, close_refs(evidence, refs))
++    if support.tag == "zero": return node("proof", "fork-capture-zero")
++    if support.tag == "all":
++        return node("proof", "fork-capture-all", items=tuple(admit_support(world, target_region, x) for x in support.get("items")))
++    require(support.tag == "atom", "FORK capture support form")
++    foot = support.get("foot"); names = foot.get("names")
++    require(foot.tag not in ("lease", "read", "write"), "FORK capture contains forbidden storage support")
++    require(foot.tag in ("scope", "region", "scope-lifetime"), "FORK capture support kind")
++    anchor = world.scope_mapping(names[0]).get("region") if foot.tag == "scope-lifetime" else names[-1]
++    goal = node("relation", "outlives", inner=target_region, outer=anchor)
++    proof = require_proof(world.entails(goal), "FORK captured lifetime")
++    return node("proof", "fork-capture-lifetime", support=support, relation=goal, evidence=proof_tree(proof))
++
++
++def capture_admissible(world, target_region, typ):
++    form_type(typ, world)
++    require(copyable(typ), "FORK cannot capture affine value")
++    return admit_support(world, target_region, support_of(typ))
++
++
++def fork_world(checker, raw, state, path, scope_type):
++    require(isinstance(scope_type, RNode) and scope_type.tag == "Scope", "FORK needs Scope")
++    s, rs = scope_type.get("scope"), scope_type.get("region")
++    names, refs = fresh_names(raw, state, SORTS)
++    p, task, invocation, region = refs
++    source_names = state.pc.world.names if state.source_names is None else state.source_names
++    result = Schema(Resolver(source_names + names)).type(raw["job"]["result"])
++    facts = (node("relation", "job", job=p, task=task, boundary=node("boundary", "ByScope", scope=s), result=result),
++             node("relation", "result", job=p, result=result), node("relation", "jobRegion", job=p, region=region),
++             node("relation", "bodyRegion", job=p, role="ordinary", region=region),
++             node("relation", "outlives", inner=region, outer=rs))
++    world = state.pc.world.extend(names, facts); form_world(world); form_type(result, world)
++    require(stable(result), "FORK job result must be Stable")
++    child = Caller(p, task, invocation, region, (s,)); child.validate(world)
++    interface = close_interface("generation-fork", refs, facts, node("type", "Unit"))
++    origin = node("generation", "fork", site=checker.site(path), interface=interface,
++                  parent=caller_key(state.pc.caller), child=caller_key(child), scope=s, region=region,
++                  captures=tuple(raw["job"]["captures"]), execution=state.execution, runtime_realized=False)
++    parent = state.clone(); parent.pc = state.pc.in_world(world)
++    if parent.source_names is not None: parent.source_names += names
++    parent.generations += tuple((ref, origin, i) for i, ref in enumerate(refs))
++    inner = parent.clone(); inner.names = {}; inner.slots = {}
++    inner.pc = ProofContext(world, child, ktrue())
++    return parent, inner, refs, facts, result, origin
++
++
++def check_fork(checker, raw, state, path, expected):
++    from .body import effect, union, Exceptional
++    scope, state, ds = checker.value(raw["scope"], state, path + ("scope",))
++    checker.check_hold(scope, state)
++    checker.path = path
++    parent, inner, refs, facts, result, origin = fork_world(checker, raw, state, path, scope.type)
++    captures = tuple(raw["job"]["captures"])
++    require(len(captures) == len(set(captures)), "duplicate fork capture")
++    require(set(captures) == set(free_terms(raw["job"]["body"])), "exact fork free captures mismatch")
++    records = []
++    for index, name in enumerate(captures):
++        require(name in state.names and state.names[name] in state.slots, "fork capture unavailable: " + name)
++        source = state.slots[state.names[name]]; checker.check_hold(source, state)
++        admissible = capture_admissible(state.pc.world, scope.type.get("region"), source.type)
++        held = require_proof(holding(source.type, inner.pc), "FORK child capture holding")
++        view = node("view", "ForkCaptureEntry", site=checker.site(path), index=index, actual=source.view, origin=origin)
++        value = checker.made(source.type, view, inner, "fork-capture-entry", (source.hold, admissible, held), source.implementation)
++        binder, _ = checker.bind(inner, name, value, path + ("job", "entry", "capture", index), "capture")
++        records.append(node("capture", "checked", name=name, binder=binder, outer_binder=state.names[name], value=value.record()))
++    body = checker.command(raw["job"]["body"], inner, path + ("job", "body"), result)
++    for normal in body.normal:
++        checker.check_hold(normal.value, normal.state)
++        require(stable(normal.value.type), "FORK job result must be Stable")
++        require(not normal.state.affine(), "FORK normal affine remainder requires explicit drop")
++    bindings = []
++    for name, tag in ((raw["result_name"], "Shared"), (raw["control_name"], "Control")):
++        typ = node("type", tag, job=refs[0], **({"payload": result} if tag == "Shared" else {})); form_type(typ, parent.pc.world)
++        value = checker.made(typ, node("view", "Forked" + tag, site=checker.site(path), origin=origin), parent,
++                             "fork-registration-success", (origin,))
++        bid, prior = checker.bind(parent, name, value, path, tag.lower()); bindings.append((name, bid, prior))
++    nxt = checker.command(raw["next"], parent, path + ("next",), expected)
++    for name, bid, prior in reversed(bindings): nxt = checker.close_binding(nxt, name, bid, prior)
++    closed = close_generated_body(checker, nxt, state, refs, origin, path, expected)
++    frame = node("frame", "GenBind", site=checker.site(path), caller=caller_key(state.pc.caller),
++                 interface=origin.get("interface"), remaining=state.snapshot(), success="move-once-to-next",
++                 failure="unwind-without-installing-binders")
++    suspended = state.clone()
++    for bid in suspended.affine(): del suspended.slots[bid]
++    failure = Exceptional(suspended, node("failure", "registration", site=checker.site(path), caller=caller_key(state.pc.caller)), (), (frame,))
++    eps = close_interface("nu", refs, facts, union(body.effect, nxt.effect, effect(node("atom", "Register", scope=origin.get("scope")), node("atom", "Raise"))))
++    form_effect(eps, state.pc.world)
++    finish = node("frame", "JobFinish", site=checker.site(path), job=refs[0], task=refs[1], role="ordinary",
++                  source_region=refs[3], job_region=refs[3], runtime_exit=caller_key(Caller(refs[0], refs[1], refs[2], refs[3], ())),
++                  remaining=(), completed=False)
++    detail = node("generation", "checked-fork", origin=origin, interface=origin.get("interface"), captures=tuple(records),
++                  job_finish=finish, child_outcomes=tuple(e.record() for e in body.exceptional), success_realized=False)
++    return checker.finish("fork", path, nxt.type, eps, closed.normal, (failure,) + closed.exceptional,
++                          (ds, body.derivation, nxt.derivation), (frame,), detail)
+--- CM1/Sources/RuntimeCore/Program.swift
++++ CM2/Sources/RuntimeCore/Program.swift
+@@ -184,7 +184,7 @@
+         _ = try raw.members(exactly:["site","role","index","sort"])
+         let sort = try raw.field("sort").text(); let role = try raw.field("role").text()
+         try demand(["Size","Owner","Epoch","Scope","Region","Invocation","Job","Task","Access"].contains(sort),"nominal sort")
+-        try demand(["init-private","new-owner","scope","run","produce","unpack"].contains(role),"nominal role")
++        try demand(["init-private","new-owner","scope","run","produce","fork","unpack"].contains(role),"nominal role")
+         return try NominalID(site:site(raw.field("site")),role:role,index:decimalIndex(raw.field("index").text()),sort:sort)
+     }
+     func slots(_ raw: JSONValue) throws -> [SlotID] { try raw.elements().map(slot) }
+@@ -225,7 +225,7 @@
+         var generation:Generation? = nil; let g = try raw.field("generation")
+         if g != .null {
+             _ = try g.members(exactly:["kind","nominals","interface","success_bindings"])
+-            let kind = try g.field("kind").text(); try demand(["new-owner","scope","run","produce","unpack"].contains(kind),"generation kind")
++            let kind = try g.field("kind").text(); try demand(["new-owner","scope","run","produce","fork","unpack"].contains(kind),"generation kind")
+             let names = try g.field("nominals").elements().map(nominal)
+             try demand(Set(names).count == names.count && names.allSatisfy { $0.site == path && $0.role == kind },"generation identities")
+             let interface = try g.field("interface"); try table.reference(interface)
+@@ -263,7 +263,7 @@
+     try demand(try result.field("diagnostic") == .null,"ready diagnostic")
+     let program = try result.field("program")
+     _ = try program.members(exactly:["schema","profile","source","sigma","static_values","sites","entry"])
+-    try demand(try program.field("schema").text() == "p8-runtime-checked-program-v1" && program.field("profile").text() == "cm1-mlx-prefill-owner1-v1","program version")
++    try demand(try program.field("schema").text() == "p8-runtime-checked-program-v1" && program.field("profile").text() == "cm2-mlx-prefill-fork-owner1-v1","program version")
+     let sourceRecord = try program.field("source"); _ = try sourceRecord.members(exactly:["utf8_base64","bytes_sha256","canonical_sha256"])
+     let rawHash = digest(source)
+     try demand(try Data(base64Encoded:sourceRecord.field("utf8_base64").text()) == source && sourceRecord.field("bytes_sha256").text() == rawHash,"exact source bytes")
+@@ -351,6 +351,13 @@
+         try demand(["Prefill32","Prefill8"].contains(try raw.field("kernel").text()),"fixed kernel")
+         _ = try raw.field("cleanup").members(exactly:["captures","parameter","result","body"])
+         children=[("scope","value"),("argument","value"),("cleanup/body","command"),("next","command")]
++    case ("command","fork"):
++        fields=["scope","names","job","result_name","control_name","next"]
++        let job=try raw.field("job"); _ = try job.members(exactly:["captures","result","body"])
++        let captures=try job.field("captures").elements().map {try $0.text()}
++        try demand(Set(captures).count == captures.count,"duplicate fork captures")
++        try demand(try raw.field("result_name").text() != raw.field("control_name").text(),"fork result/control names")
++        children=[("scope","value"),("job/body","command"),("next","command")]
+     case ("command","request_cancel"): fields=["control","next"]; children=[("control","value"),("next","command")]
+     default: throw ProtocolError("unsupported node in ready program: \(family):\(tag)")
+     }
+@@ -358,13 +365,13 @@
+     if a.frame?.kind == "ScopeExit" {
+         try demand(a.frame?.backendReturnContract == (tag == "run" ? cm1BackendContract : JSONValue.null),"ScopeExit backend-return contract")
+     }
+-    let generationKinds=["new_owner":"new-owner","scope":"scope","run":"run","produce":"produce","unpack":"unpack"]
++    let generationKinds=["new_owner":"new-owner","scope":"scope","run":"run","produce":"produce","fork":"fork","unpack":"unpack"]
+     let expectedGeneration = family == "command" ? generationKinds[tag]:nil
+     try demand(a.generation?.kind == expectedGeneration,"source/generation kind correspondence")
+     var expectedFrame:String?=nil
+     if family == "command" {
+         switch tag {
+-        case "new_owner","produce":expectedFrame="GenBind"
++        case "new_owner","produce","fork":expectedFrame="GenBind"
+         case "scope","run":expectedFrame="ScopeExit"
+         case "call":expectedFrame="CallReturn"
+         case "try":expectedFrame="Try"
+@@ -376,11 +383,12 @@
+     if let g=a.generation {
+         let declared = try raw.field("names").elements()
+         try demand(declared.count == g.names.count,"generation nominal arity")
+-        let fixedSorts=["new-owner":["Size","Owner"],"scope":["Scope","Region","Invocation"],"run":["Epoch","Scope","Region","Invocation"],"produce":["Job","Task","Invocation","Region","Access","Access","Region"]]
++        let fixedSorts=["new-owner":["Size","Owner"],"scope":["Scope","Region","Invocation"],"run":["Epoch","Scope","Region","Invocation"],"produce":["Job","Task","Invocation","Region","Access","Access","Region"],"fork":["Job","Task","Invocation","Region"]]
+         if let required=fixedSorts[g.kind] {try demand(g.names.map(\.sort) == required,"generation nominal sorts")}
+         for (i,row) in declared.enumerated() {
+             _ = try row.members(exactly:["name","sort"])
+             try demand(try row.field("sort").text() == g.names[i].sort && g.names[i].index == i,"generation nominal ordering")
++            if g.kind == "fork" {try demand(try bodyNominals[row.field("name").text()] == nil,"fork fresh nominal name")}
+             bodyNominals[try row.field("name").text()] = g.names[i]
+         }
+     }
+@@ -391,7 +399,7 @@
+             childPath=pointerChild(childPath,component)
+             if case .array(let xs)=child, let i=Int(component) { child=xs[i] } else { child=try child.field(component) }
+         }
+-        let insideGeneration = key == "body" || key == "cleanup/body" || (tag == "produce" && key == "next")
++        let insideGeneration = key == "body" || key == "cleanup/body" || key == "job/body" || (["produce","fork"].contains(tag) && key == "next")
+         try walkSource(child,family:childFamily,path:childPath,nominals:insideGeneration ? bodyNominals : nominals,annotations:annotations,nodes:&nodes,order:&order,names:&names)
+     }
+ }
+@@ -433,11 +441,38 @@
+             expect("generated",0,try raw.field("result_name").text());expect("generated",1,try raw.field("control_name").text())
+             expect("cleanup-parameter",0,try raw.field("cleanup").field("parameter").field("name").text())
+             for (i,n) in try raw.field("cleanup").field("captures").elements().enumerated() {expect("capture",i,try n.text())}
++        case "command:fork":
++            expect("generated",0,try raw.field("result_name").text());expect("generated",1,try raw.field("control_name").text())
++            for (i,n) in try raw.field("job").field("captures").elements().enumerated() {expect("capture",i,try n.text())}
+         default:break
+         }
+         try demand(Dictionary(uniqueKeysWithValues:row.bindings.map{($0.id,$0.name)}) == expected,"exact source binding definitions")
+         if let g=row.generation {
+             for (id,_,refs) in g.success {try demand(definitions[id] != nil && refs.allSatisfy(nominalDefinitions.contains),"generated binding references")}
++            if g.kind == "fork" {
++                // The fixed compiler proves typing/capture lifetimes. Here we
++                // bind its complete interface and result to this source site.
++                let table=decoder.table
++                try demand(try table.text(table.field(g.interface,"binder")) == "generation-fork","fork interface kind")
++                let sorts=try table.resolve(table.field(g.interface,"ordered_sorts")).field("array").elements().map {try table.text($0)}
++                try demand(sorts == ["Job","Task","Invocation","Region"],"fork interface ordered sorts")
++                try demand(try table.tag(table.field(g.interface,"body")) == "Unit","fork interface body")
++                try demand(g.success.count == 2,"fork success binding domain")
++                for (index,tag) in ["Shared","Control"].enumerated() {
++                    let binding=try row.binder("generated",index), success=g.success[index]
++                    try demand(success.0 == binding.id && success.1 == tag,"fork success binding domain")
++                    try demand(try table.tag(binding.type) == tag,"fork generated complete type")
++                    let fields=try table.fields(binding.type)
++                    guard let job=fields["job"] else {throw ProtocolError("fork generated Job")}
++                    var budget=128
++                    let rawJob=try table.smallValue(table.field(job,"nominal"),remaining:&budget)
++                    try demand(try decoder.nominal(rawJob) == g.names[0],"fork generated Job identity")
++                    if index == 0 {
++                        guard let payload=fields["payload"],let body=rows.first(where:{$0.path == row.path+"/job/body"}) else {throw ProtocolError("fork child result interface")}
++                        try demand(payload == body.type,"fork complete child result correspondence")
++                    }
++                }
++            }
+         }
+     }
+     let byPath=Dictionary(uniqueKeysWithValues:rows.map{($0.path,$0)})
+@@ -447,12 +482,14 @@
+         if row.kind == "value:var" {
+             guard let id=environment[try raw.field("name").text()] else {throw ProtocolError("var outside lexical environment")};direct=[id]
+         }
+-        if row.kind == "value:lambda" || row.kind == "command:produce" {
+-            let names=try (row.kind == "value:lambda" ? raw.field("captures"):raw.field("cleanup").field("captures")).elements()
++        if ["value:lambda","command:produce","command:fork"].contains(row.kind) {
++            let container=try row.kind == "command:produce" ? raw.field("cleanup") : row.kind == "command:fork" ? raw.field("job") : raw
++            let names=try container.field("captures").elements()
+             for (index,name) in names.enumerated() {
+                 guard let id=environment[try name.text()] else {throw ProtocolError("capture outside lexical environment")}
+                 direct.append(id)
+                 try demand(index < row.captures.count && row.captures[index].source == id && row.captures[index].binder == SlotID(site:path,role:"capture",index:index),"capture source/order")
++                if row.kind == "command:fork" {try demand(try !row.captures[index].move && decoder.table.copyable(row.captures[index].type),"fork captures must Copy")}
+             }
+             try demand(row.captures.count == names.count,"capture domain")
+         } else {try demand(row.captures.isEmpty,"capture on non-closure source")}
+@@ -473,6 +510,12 @@
+             var inner:[String:SlotID]=[:]
+             for i in row.captures.indices {inner=try extended(inner,"capture",i)}
+             try visit("cleanup/body",extended(inner,"cleanup-parameter"))
++            try visit("next",extended(extended(environment,"generated",0),"generated",1))
++        case "command:fork":
++            try visit("scope")
++            var inner:[String:SlotID]=[:]
++            for i in row.captures.indices {inner=try extended(inner,"capture",i)}
++            try visit("job/body",inner)
+             try visit("next",extended(extended(environment,"generated",0),"generated",1))
+         case "command:let_e":try visit("expression");try visit("next",extended(environment,"let"))
+         case "command:let_c":try visit("first");try visit("next",extended(environment,"let"))
+--- /dev/null
++++ CM2/programs/build_cm2_programs.py
+@@ -0,0 +1,277 @@
++#!/usr/bin/env python3
++"""CM2 finite source constructors; imports only pinned, pure CM1/A2 helpers.
++
++No candidate checker/runtime/worker import. Source bytes and site metadata are
++materialized only when root executes this frozen generator for the first time.
++"""
++import argparse
++from copy import deepcopy
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++
++HERE=Path(__file__).resolve().parent
++BASE=HERE/"build_cm1_programs.py"
++BASE_SHA="36e3e2ea41400de2c271a6df938325ae98c6ca5ac2232155ffd082a266d120e0"
++if hashlib.sha256(BASE.read_bytes()).hexdigest()!=BASE_SHA: raise RuntimeError("CM1 pure helper pin")
++spec=importlib.util.spec_from_file_location("cm2_pinned_cm1_data",BASE)
++m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
++t,v,c,var,unit,ret,nm,rel,atom,eff,union,nu,letv,letproj,lam=(getattr(m,x) for x in
++    ("t","v","c","var","unit","ret","nm","rel","atom","eff","union","nu","letv","letproj","lam"))
++bind,pair,hide=m.bind,m.pair,m.hide
++PROFILE="cm2-mlx-prefill-fork-owner1-v1"
++SCHEMA=m.SCHEMA
++WTYPE=t("Pair",left=t("Sum",left=t("Word"),right=t("Unit")),right=t("Word"))
++
++
++def terminal(job): return eff(atom("Need",job=job,mode="terminal"),atom("Raise"))
++def throw_body():
++    return c("let_e",name="errorPayload",expression={"expression":"op","name":"body_error","arguments":[unit()]},
++             next=c("throw",payload=var("errorPayload")))
++def call(name): return c("call",function=var(name),argument=unit())
++def drop(name,body): return c("drop",value=var(name),next=body)
++def word(n): return v("word",literal=n)
++def fn_type(mode="U",requirement=None):
++    return t("Fn",mode=mode,foot={"support":"all","items":[]},projections={"selectors":[],"entries":[]},
++             requires={"requires":"true"} if requirement is None else requirement,links=[],
++             parameter=t("Unit"),result=t("Word"),effect=eff())
++def pure_fn(mode="U",requirement=None):
++    value=lam("unused",t("Unit"),t("Word"),ret(word(17)),eff(),[])
++    value.update(mode=mode,requires={"requires":"true"} if requirement is None else requirement,links=[])
++    return value
++def fork_parts(prefix,scope,region,result):
++    names=[nm(prefix+suffix,sort) for suffix,sort in (("P","Job"),("Task","Task"),("I","Invocation"),("R","Region"))]
++    facts=[rel("job",job=prefix+"P",task=prefix+"Task",scope=scope,result=deepcopy(result)),
++           rel("result",job=prefix+"P",result=deepcopy(result)),rel("jobRegion",job=prefix+"P",region=prefix+"R"),
++           rel("bodyRegion",job=prefix+"P",role="ordinary",region=prefix+"R"),rel("outlives",inner=prefix+"R",outer=region)]
++    return names,facts
++def fork(prefix,target,scope,region,result,body,captures,next,body_effect=None,next_effect=None):
++    names,facts=fork_parts(prefix,scope,region,result)
++    command=c("fork",scope=var(target),names=names,job={"captures":list(captures),"result":deepcopy(result),"body":body},
++              result_name=prefix+"H",control_name=prefix+"K",next=next)
++    effect=nu(names,facts,union(body_effect or eff(),next_effect or eff(),eff(atom("Register",scope=scope),atom("Raise"))))
++    return command,effect
++def scope(prefix,body,effect,*,target_name=None,edges=()):
++    names=[nm(prefix+suffix,sort) for suffix,sort in (("S","Scope"),("R","Region"),("I","Invocation"))]
++    facts=[rel("scope_shape",scope=prefix+"S",region=prefix+"R",kind="plain")]
++    facts += [rel("outlives",inner=prefix+"R",outer=r) for r in edges]
++    return (c("scope",names=names,name=target_name or prefix+"Scope",body=body),
++            union(eff(atom("Raise")),nu(names,facts,union(effect,eff(atom("Enter",scope=prefix+"S"),atom("Drain",scope=prefix+"S"),atom("Raise"))))))
++def closed(body,effect,result=None): return {"schema":SCHEMA,"main":{"result":result or t("Unit"),"effect":effect,"body":body}}
++def in_scope(body,effect,result=None): return closed(*scope("Test",body,effect),result)
++
++
++def targets():
++    plain,pe=fork("Plain","TestScope","TestS","TestR",t("Unit"),ret(),[],ret())
++    owned,oe=fork("Owned","AScope","AS","AR",t("Unit"),ret(),[],ret())
++    rn,rf=m.run_parts("A")
++    run=c("run",owner=var("owner"),names=rn,name="AScope",body=owned)
++    re=union(eff(atom("Raise")),nu(rn,rf,union(oe,eff(atom("Enter",scope="AS"),atom("Drain",scope="AS"),atom("Raise")))))
++    sc,se=scope("Test",plain,pe)
++    return m.with_owner(bind("plainDone",sc,run),union(se,re),t("Unit"))
++
++
++def full_stable():
++    interface={"names":[nm("HiddenJob","Job")],"facts":[rel("result",job="HiddenJob",result=t("Word"))]}
++    package=t("Exists",interface=interface,body=t("Shared",job="HiddenJob",payload=t("Word")))
++    result=t("Pair",left=fn_type(),right=package)
++    packaged=v("pack",exists_type=package,witnesses=[{"name":"SeedP"}],payload=var("SeedH"))
++    historical=bind("historicalWord",m.await_payload("openedShared","OldSeed"),ret(pair(var("actualFnWord"),var("historicalWord"))))
++    opened=c("unpack",package=var("deliveredPackage"),names=[nm("OpenedJob","Job")],name="openedShared",body=historical)
++    finish=bind("actualFnWord",call("deliveredFn"),opened)
++    consume=bind("delivered",m.await_payload("FullH","FullResult"),
++        letproj("deliveredFn","delivered","fst",letproj("deliveredPackage","delivered","snd",finish)))
++    consume_effect=union(m.need("FullP"),hide(interface,m.need("HiddenJob")))
++    full,fe=fork("Full","TestScope","TestS","TestR",result,ret(pair(pure_fn(),packaged)),["SeedH"],consume,next_effect=consume_effect)
++    seed,se=fork("Seed","TestScope","TestS","TestR",t("Word"),ret(word(5)),[],full,next_effect=fe)
++    return in_scope(seed,se,t("Pair",left=t("Word"),right=t("Word")))
++
++
++def compound_scope():
++    scope_type=t("Scope",scope="TestS",region="TestR",kind="plain")
++    sum_type=t("Sum",left=scope_type,right=t("Unit"))
++    scoped_fn=lam("unused",t("Unit"),t("Unit"),drop("TestScope",ret()),eff(),["TestScope"])
++    body=drop("scopePair",bind("sumDone",c("case",value=var("scopeSum"),left_name="chosenScope",left=drop("chosenScope",ret()),
++          right_name="empty",right=ret()),call("scopeFn")))
++    command,effect=fork("Compound","TestScope","TestS","TestR",t("Unit"),body,["scopePair","scopeSum","scopeFn"],ret())
++    return in_scope(letv("scopePair",pair(var("TestScope"),word(1)),
++        letv("scopeSum",v("inl",sum_type=sum_type,payload=var("TestScope")),letv("scopeFn",scoped_fn,command))),effect)
++
++
++def hidden_scope(strong):
++    facts=[rel("scope_shape",scope="HiddenS",region="HiddenR",kind="plain")]
++    if strong: facts.append(rel("outlives",inner="TestR",outer="HiddenR"))
++    interface={"names":[nm("HiddenS","Scope"),nm("HiddenR","Region")],"facts":facts}
++    typ=t("Exists",interface=interface,body=t("Scope",scope="HiddenS",region="HiddenR",kind="plain"))
++    package=v("pack",exists_type=typ,witnesses=[{"name":"TestS"},{"name":"TestR"}],payload=var("TestScope"))
++    job=c("unpack",package=var("hiddenScope"),names=[nm("OpenedS","Scope"),nm("OpenedR","Region")],name="openedScope",body=drop("openedScope",ret()))
++    command,effect=fork("Hidden","TestScope","TestS","TestR",t("Unit"),job,["hiddenScope"],ret(),body_effect=hide(interface,eff()))
++    return in_scope(letv("hiddenScope",package,command),effect)
++
++
++def shorter_scope():
++    command,effect=fork("Short","TestScope","TestS","TestR",t("Unit"),drop("InnerScope",ret()),["InnerScope"],ret())
++    inner,ie=scope("Inner",command,effect)
++    return in_scope(inner,ie)
++
++
++def hidden_read(kind):
++    name="ARead"; setup=lambda body:body
++    if kind=="closure":
++        name="readFn"
++        function=lam("unused",t("Unit"),t("Word"),c("load",read=var("ARead"),index=v("nat",literal=0)),m.read_effect(),["ARead"])
++        setup=lambda body:letv(name,function,body)
++    if kind=="exists":
++        name="readPackage"
++        interface={"names":[nm("HiddenAccess","Access"),nm("HiddenRegion","Region")],"facts":[
++            rel("access",access="HiddenAccess",job="AP",owner="O",epoch="AG",region="HiddenRegion")]}
++        typ=t("Exists",interface=interface,body=t("Read",access="HiddenAccess",owner="O",epoch="AG",region="HiddenRegion"))
++        package=v("pack",exists_type=typ,witnesses=[{"name":"AReadA"},{"name":"ACleanupR"}],payload=var("ARead"))
++        setup=lambda body:letv(name,package,body)
++    command,ce=fork("Forbidden","AScope","AS","AR",t("Unit"),drop(name,ret()),[name],ret(word(0)))
++    run=m.producer_run("A","Prefill32",m.tokens_value([word(x) for x in m.A32]),ret(),cleanup=setup(command))
++    run["body"]["cleanup"]["captures"]=["AScope"]
++    return m.with_owner(run,m.run_effect("A",t("Word"),ce,eff()),t("Unit"))
++
++
++def affine(captured):
++    body=drop("affineFn",ret()) if captured else ret()
++    next=ret() if captured else bind("consumed",call("affineFn"),ret())
++    command,effect=fork("Affine","TestScope","TestS","TestR",t("Unit"),body,["affineFn"] if captured else [],next)
++    return in_scope(letv("affineFn",pure_fn("A"),command),effect)
++
++
++def caller_kappa(call_in_child):
++    requirement={"requires":"same_job","job":"ParentP"}
++    child_result=t("Word") if call_in_child else fn_type(requirement=requirement)
++    child_body=call("parentFn") if call_in_child else ret(var("parentFn"))
++    consume=bind("received",m.await_payload("ChildH","ChildResult"),ret(var("received")) if call_in_child else call("received"))
++    child,ce=fork("Child","TestScope","TestS","TestR",child_result,child_body,["parentFn"],consume,next_effect=m.need("ChildP"))
++    parent_body=letv("parentFn",pure_fn(requirement=requirement),child)
++    parent,pe=fork("Parent","TestScope","TestS","TestR",t("Word"),parent_body,["TestScope"],
++        m.await_payload("ParentH","ParentResult"),body_effect=ce,next_effect=m.need("ParentP"))
++    return in_scope(parent,pe,t("Word"))
++
++
++def exact_capture(duplicate):
++    command,effect=fork("Exact","TestScope","TestS","TestR",t("Word"),ret(var("outerWord")),
++                        ["outerWord","outerWord"] if duplicate else [],ret())
++    return in_scope(letv("outerWord",word(1),command),effect)
++def freshness(escape):
++    command,effect=fork("Fresh","TestScope","TestS","TestR",t("Word"),ret(word(1)),[],ret(var("FreshH")) if escape else ret())
++    if not escape: command["names"][0]["name"]="TestS"
++    # No expected Unit propagated into the first command: the lexical fresh
++    # escape check is reached before LET-C discards the resulting Shared.
++    if escape: command=bind("escaped",command,ret())
++    return in_scope(command,effect)
++def missing_effect():
++    missing,me=fork("Missing","TestScope","TestS","TestR",t("Sum",left=t("Word"),right=t("Unit")),
++        c("await_cancel",shared=var("SeedH")),["SeedH"],ret())
++    seed,se=fork("Seed","TestScope","TestS","TestR",t("Word"),ret(word(1)),[],missing,next_effect=me)
++    return in_scope(seed,se)
++def bottom(unreachable):
++    command,effect=fork("Bottom","TestScope","TestS","TestR",t("Word"),throw_body(),[],ret(),body_effect=eff(atom("Raise")))
++    if unreachable:
++        command=c("let_c",name="never",bind_type=t("Unit"),first=throw_body(),next=command)
++        effect=eff(atom("Raise"))
++    return in_scope(command,effect)
++
++
++def waiter_source():
++    """One exact source for N/D/C3/C7; no source gate or host token."""
++    choice=t("Sum",left=t("Word"),right=t("Unit"))
++    selected=c("case",value=var("rawChoice"),left_name="deliveredA",left=ret(v("inl",sum_type=choice,payload=var("deliveredA"))),
++               right_name="detached",right=ret(v("inr",sum_type=choice,payload=var("detached"))))
++    job=bind("rawChoice",c("await_cancel",shared=var("AH")),bind("selected",selected,ret(pair(var("selected"),word(7001)))))
++    after=c("request_cancel",control=var("WK"),next=c("request_cancel",control=var("WK"),next=c("await",shared=var("WH"))))
++    wf,we=fork("W","WaiterScope","WaiterS","WaiterR",WTYPE,job,["AH"],after,body_effect=m.need("AP"),
++        next_effect=union(terminal("WP"),eff(atom("RequestCancel",job="WP"))))
++    ws,wse=scope("Waiter",wf,we)
++    apack=v("pack",exists_type=m.result_package(),witnesses=[{"name":"AP"}],payload=pair(var("AH"),var("firstAToken")))
++    anext=bind("waiterResult",ws,bind("firstAToken",m.await_payload("AH","AFirst"),ret(pair(var("waiterResult"),apack))))
++    arun=m.producer_run("A","Prefill32",m.tokens_value([word(x) for x in m.A32]),anext)
++    brun=m.producer_run("B","Prefill8",m.tokens_value([word(x) for x in m.B_PREFIX7]+[var("aToken")]),m.await_payload("BH","BFirst"))
++    final=ret(pair(var("waiterResult"),pair(var("aToken"),pair(var("bToken"),var("oldAToken")))))
++    opened=c("unpack",package=var("aPackage"),names=[nm("AJob","Job")],name="aPair",
++        body=letproj("aShared","aPair","fst",letproj("aToken","aPair","snd",bind("bToken",brun,
++            bind("oldAToken",m.await_payload("aShared","HistoricalA"),final)))))
++    body=bind("aRunResult",arun,letproj("waiterResult","aRunResult","fst",letproj("aPackage","aRunResult","snd",opened)))
++    ae=m.run_effect("A",t("Word"),m.read_effect(),union(wse,m.need("AP")))
++    be=m.run_effect("B",t("Word"),m.read_effect(),m.need("BP"))
++    result=t("Pair",left=WTYPE,right=t("Pair",left=t("Word"),right=t("Pair",left=t("Word"),right=t("Word"))))
++    return m.with_owner(body,union(ae,hide(m.result_interface(),union(be,m.need("ResultJob")))),result)
++
++
++def open_storage(write):
++    names=[nm(n,s) for n,s in (("N","Size"),("O","Owner"),("G","Epoch"),("S","Scope"),("R","Region"),
++        ("I","Invocation"),("P","Job"),("Task","Task"),("L","Lease"))]
++    facts=[rel("positiveSize",size={"witness":"N"}),rel("owner",owner="O",size={"witness":"N"}),rel("epoch_owner",epoch="G",owner="O"),
++        rel("scope_shape",scope="S",region="R",kind={"owner":"O","epoch":"G"}),
++        rel("job",job="P",task="Task",scope="S",result=t("Unit")),rel("result",job="P",result=t("Unit")),
++        rel("jobRegion",job="P",region="R"),rel("bodyRegion",job="P",role="ordinary",region="R")]
++    typ=t("Write",owner="O",epoch="G") if write else t("Lease",scope="S",owner="O",epoch="G",lease="L",region="R")
++    body,effect=fork("Storage","target","S","R",t("Unit"),drop("storage",ret()),["storage"],ret())
++    return {"schema":"p8-runtime-open-source-v0.1","world":{"names":names,"facts":facts},"entry":{
++        "caller":{"job":"P","task":"Task","invocation":"I","region":"R","scope_stack":["S"]},
++        "inputs":[{"name":"target","type":t("Scope",scope="S",region="R",kind={"owner":"O","epoch":"G"})},{"name":"storage","type":typ}],
++        "result":t("Unit"),"effect":effect,"body":body}}
++
++
++METHOD_CASES=(
++ ("test_targets",("targets",)), ("test_full_stable_result",("full_stable",)),
++ ("test_compound_scope_capture",("compound_scope",)), ("test_hidden_scope_interface",("hidden_scope_strong","hidden_scope_weak")),
++ ("test_shorter_scope",("shorter_scope",)), ("test_hidden_read",("read_direct","read_closure","read_exists")),
++ ("test_affine_and_frame",("affine_capture","affine_frame")), ("test_caller_kappa",("kappa_hold","kappa_call")),
++ ("test_exact_captures",("missing_capture","duplicate_capture")), ("test_freshness_escape",("fresh_reuse","bare_shared")),
++ ("test_full_effect",("missing_effect",)), ("test_bottom_paths",("bottom_child","bottom_continuation")),
++ ("test_actual_waiter_source",("normal",)), ("test_lease_write_boundary",("open_lease","open_write")))
++CASES=tuple(case for _,cases in METHOD_CASES for case in cases)
++BUILDERS={"targets":targets,"full_stable":full_stable,"compound_scope":compound_scope,
++    "hidden_scope_strong":lambda:hidden_scope(True),"hidden_scope_weak":lambda:hidden_scope(False),"shorter_scope":shorter_scope,
++    "read_direct":lambda:hidden_read("direct"),"read_closure":lambda:hidden_read("closure"),"read_exists":lambda:hidden_read("exists"),
++    "affine_capture":lambda:affine(True),"affine_frame":lambda:affine(False),"kappa_hold":lambda:caller_kappa(False),"kappa_call":lambda:caller_kappa(True),
++    "missing_capture":lambda:exact_capture(False),"duplicate_capture":lambda:exact_capture(True),"fresh_reuse":lambda:freshness(False),
++    "bare_shared":lambda:freshness(True),"missing_effect":missing_effect,"bottom_child":lambda:bottom(False),"bottom_continuation":lambda:bottom(True),
++    "normal":waiter_source,"open_lease":lambda:open_storage(False),"open_write":lambda:open_storage(True)}
++MESSAGES={"hidden_scope_weak":"FORK captured lifetime: no-outlives-path","shorter_scope":"FORK captured lifetime: no-outlives-path",
++    "read_direct":"FORK capture contains forbidden storage support","read_closure":"FORK capture contains forbidden storage support",
++    "read_exists":"FORK capture contains forbidden storage support","affine_capture":"FORK cannot capture affine value",
++    "kappa_call":"CALL kappa caller requirement: caller-job-mismatch","missing_capture":"exact fork free captures mismatch",
++    "duplicate_capture":"duplicate fork capture","fresh_reuse":"generation names must be fresh","bare_shared":"generation result name escape",
++    "missing_effect":"main source effect upper bound: no-injective-hide-nu-match","open_lease":"FORK capture contains forbidden storage support",
++    "open_write":"Write kernel-context formation"}
++EXPECTATIONS={name:({"route":"open" if name.startswith("open_") else "closed","status":"static-rejected","frontend_exit":1,
++    "diagnostic_phase":"static","diagnostic_code":"unsupported" if name=="open_write" else "semantic-no","diagnostic_message":MESSAGES[name]}
++    if name in MESSAGES else {"route":"closed","status":"ready","frontend_exit":0,"profile":PROFILE}) for name in CASES}
++def source(case): return BUILDERS[case]()
++def encode(value): return (json.dumps(value,ensure_ascii=True,sort_keys=True,separators=(",",":"))+"\n").encode()
++def source_bytes(case): return encode(source(case))
++def nodes(raw,path=()):
++    if isinstance(raw,dict):
++        yield path,raw
++        for k,value in raw.items(): yield from nodes(value,path+(k,))
++    elif isinstance(raw,list):
++        for i,value in enumerate(raw): yield from nodes(value,path+(i,))
++def source_sites(raw):
++    """Fixed policy selectors are resolved from the frozen source, never a log."""
++    found={}
++    for path,node in nodes(raw):
++        if node.get("command")=="produce" and node.get("result_name")=="AH": found["a_produce"]="/"+"/".join(map(str,path))
++        if node.get("command")=="fork" and node.get("result_name")=="WH": found["w_fork"]="/"+"/".join(map(str,path))
++        if node.get("command")=="scope" and node.get("name")=="WaiterScope": found["waiter_scope"]="/"+"/".join(map(str,path))
++        if node.get("command")=="await_cancel" and node.get("shared")==var("AH") and "job" in path: found["w_await"]="/"+"/".join(map(str,path))
++    return found
++def main():
++    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("--output-dir",type=Path,required=True);args=parser.parse_args()
++    args.output_dir.mkdir(parents=True,exist_ok=False);records=[]
++    for name in CASES:
++        raw=source(name);data=encode(raw);(args.output_dir/(name+".json")).write_bytes(data)
++        records.append({"case":name,"file":name+".json","bytes":len(data),"sha256":hashlib.sha256(data).hexdigest(),
++            "canonical_sha256":hashlib.sha256(json.dumps(raw,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest(),
++            "expected":EXPECTATIONS[name],"sites":source_sites(raw)})
++    result={"schema":"cm2-source-generation-v1","checked":False,"runtime_started":False,
++        "generator_sha256":hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),"cm1_helper_sha256":BASE_SHA,
++        "a2_helper_sha256":m.HELPER_SHA256,"fixed_input_origin":m.INPUT_ORIGIN,"methods":METHOD_CASES,"cases":records}
++    (args.output_dir/"manifest.json").write_text(json.dumps(result,indent=2)+"\n");print(json.dumps(result))
++if __name__=="__main__": main()
+--- /dev/null
++++ CM2/static-controls/check_open.py
+@@ -0,0 +1,20 @@
++#!/usr/bin/env python3
++"""F14-only finite open static route. No INIT, exporter, runtime or worker."""
++import json
++from pathlib import Path
++import sys
++sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"frontend"))
++from p8source.entry import check_open_fragment
++from p8source.sigma import fixed_sigma
++
++def main():
++    raw=json.loads(sys.stdin.buffer.read(1048577))
++    result=check_open_fragment(fixed_sigma(),raw)
++    accepted=result.verdict=="checked-source-fragment-under-explicit-premises"
++    response={"schema":"cm2-open-static-response-v1","status":"open-checked" if accepted else
++        "infrastructure-error" if result.verdict=="infrastructure-error" else "static-rejected",
++        "verdict":result.verdict,"program":None,"diagnostic":None if accepted else {"phase":"static",**result.diagnostic},
++        "runtime_started":False,"derivation_exported":False}
++    print(json.dumps(response,separators=(",",":")))
++    return 0 if accepted else 2 if response["status"]=="infrastructure-error" else 1
++if __name__=="__main__": raise SystemExit(main())
+--- CM1/static-controls/run_static.py
++++ CM2/static-controls/run_static.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""Ten explicit CM1 static methods / eleven inputs; no worker or runtime.
++"""Fourteen explicit CM2 static methods / twenty-three inputs; no worker or runtime.
+ 
+ All sources/expectations are saved before the first fixed exporter child starts.
+ Each child receives original source bytes over stdin and its entire stdout and
+@@ -20,7 +20,7 @@
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ EXPORT = ROOT / "frontend/export.py"
+-GENERATOR = ROOT / "programs/build_cm1_programs.py"
++GENERATOR = ROOT / "programs/build_cm2_programs.py"
+ CONTRACT = {"id": "p8-cm1-mlx-backend-return-v1", "allocation_kind": "MLXPrefillOwner1",
+     "word_slots": 1, "private_kv_layers": 28, "return_obligation": "BackendReturn-v1",
+     "unknown_policy": "host-incomplete-sticky-v1"}
+@@ -30,19 +30,8 @@
+         {"name": "Prefill8", "kind": "kernel", "implementation": "qwen3-week3-mlx-prefill8-token1-v1"},
+         {"name": "body_error", "kind": "pure", "implementation": "body-error-unit-v1"}],
+     "backend_contract": CONTRACT}
+-METHOD_CASES = (
+-    ("test_normal_complete_source_interfaces_and_flow", "normal"),
+-    ("test_unknown_kernel_rejected", "reject_unknown_kernel"),
+-    ("test_b_eighth_nat_rejected", "reject_b_last_nat"),
+-    ("test_owner8_rejected_before_profile_execution", "reject_owner8"),
+-    ("test_live_read_closure_rejected", "reject_live_read_closure"),
+-    ("test_live_read_exists_rejected", "reject_live_read_exists"),
+-    ("test_bare_shared_without_pack_rejected", "reject_bare_shared"),
+-    ("test_source_cannot_supply_backend_contract", "reject_source_contract"),
+-    ("test_plain_scope_has_no_backend_return", "plain_scope"),
+-    ("test_new_zero_and_unsupported_literal_profile", "new0"))
+-INPUT_CASES = METHOD_CASES + (("test_new_zero_and_unsupported_literal_profile", "new2_profile_unsupported"),)
+-
++METHOD_CASES = ()  # populated from the fixed pure builder in main
++INPUT_CASES = ()
+ 
+ def pin(path):
+     data = path.read_bytes()
+@@ -123,9 +112,10 @@
+             observation["not_started_reason"] = self.abort_reason
+             save(directory / "observation.json", observation)
+             raise RuntimeError(self.abort_reason)
+-        argv = [str(Path(sys.executable).resolve()), "-I", "-S", "-B", str(EXPORT)]
++        exporter = ROOT / "static-controls/check_open.py" if self.builder.EXPECTATIONS[case]["route"] == "open" else EXPORT
++        argv = [str(Path(sys.executable).resolve()), "-I", "-S", "-B", str(exporter)]
+         observation.update({"state": "started", "argv": argv, "cwd": str(ROOT),
+-            "remaining_internal_seconds_at_start": remaining, "exporter": pin(EXPORT), "timeout": False})
++            "remaining_internal_seconds_at_start": remaining, "exporter": pin(exporter), "timeout": False})
+         save(directory / "observation.json", observation)
+         started = time.monotonic()
+         child = None
+@@ -196,15 +186,16 @@
+         save(record["directory"] / "observation.json", record["observation"])
+ 
+ 
+-class CM1StaticTests(unittest.TestCase):
++class CM2StaticTests(unittest.TestCase):
+     records = None
+ 
+     def exchange(self, case):
+         response, observed = self.records.exchange(case)
+         expected = self.records.builder.EXPECTATIONS[case]
+         self.assertFalse(observed["timeout"])
++        self.assertTrue(observed["direct_child_reaped"])
+         self.assertEqual(observed["actual_exit"], expected["frontend_exit"])
+-        self.assertEqual(response["schema"], "p8-runtime-frontend-response-v1")
++        self.assertEqual(response["schema"], "cm2-open-static-response-v1" if expected["route"] == "open" else "p8-runtime-frontend-response-v1")
+         self.assertEqual(response["status"], expected["status"], response.get("diagnostic"))
+         if expected["status"] != "ready":
+             self.assertIsNone(response["program"])
+@@ -213,146 +204,127 @@
+             self.assertEqual(diagnostic["code"], expected["diagnostic_code"])
+             self.assertEqual(diagnostic["message"], expected["diagnostic_message"])
+             self.assertIsInstance(diagnostic["path"], list)
+-        else:
+-            self.assertIsNone(response["diagnostic"])
+-            self.assertEqual(response["program"]["profile"], expected["profile"])
++            self.records.observe(case, exact_diagnostic=diagnostic, rejection_before_runtime=True)
++            return response
++        program = response["program"]
++        self.assertIsNone(response["diagnostic"])
++        self.assertEqual(program["profile"], expected["profile"])
++        self.assertEqual(program["sigma"], SIGMA)
++        data = self.records.cases[case]["data"]
++        self.assertEqual(base64.b64decode(program["source"]["utf8_base64"], validate=True), data)
++        source = json.loads(data)
++        digest = hashlib.sha256(json.dumps(source, sort_keys=True, separators=(",",":"), ensure_ascii=False).encode()).hexdigest()
++        sites = {row["site"]["pointer"]: row for row in program["sites"]}
++        self.assertEqual(len(sites), len(program["sites"]))
++        source_sites = {pointer(path): value for path,value in data_nodes(source) if type(value) is dict and any(k in value for k in ("command","expression","value")) and ("command" in value or "expression" in value or type(value.get("value")) is str)}
++        self.assertEqual(set(sites),set(source_sites))
++        decode = wire_decoder(program)
++        interfaces = []
++        for path,row in sites.items():
++            self.assertEqual(row["site"]["source_sha256"],digest)
++            if row["frame"] is not None:
++                if row["frame"]["kind"] == "ScopeExit":
++                    self.assertEqual(row["frame"]["backend_return_contract"],CONTRACT if row["node_kind"] == "command:run" else None)
++                else: self.assertNotIn("backend_return_contract",row["frame"])
++            if row["node_kind"] != "command:fork": continue
++            raw = source_sites[path]
++            generation = row["generation"]
++            self.assertEqual(generation["kind"],"fork")
++            self.assertEqual(row["frame"]["kind"],"GenBind")
++            self.assertEqual([n["sort"] for n in generation["nominals"]],["Job","Task","Invocation","Region"])
++            for index,nominal in enumerate(generation["nominals"]):
++                self.assertEqual(nominal,{"site":row["site"],"role":"fork","index":str(index),"sort":["Job","Task","Invocation","Region"][index]})
++            interface = decode(generation["interface"])
++            self.assertEqual(interface["binder"],"generation-fork")
++            self.assertEqual(interface["ordered_sorts"],["Job","Task","Invocation","Region"])
++            self.assertEqual([f["tag"] for f in interface["facts"]],["job","result","jobRegion","bodyRegion","outlives"])
++            self.assertEqual(interface["facts"][3]["fields"]["role"],"ordinary")
++            self.assertEqual(interface["body"],ty("Unit"))
++            self.assertEqual(row["usage"]["move"],[])
++            self.assertEqual(len(row["capture"]),len(raw["job"]["captures"]))
++            self.assertEqual(len(row["bindings"]),len(raw["job"]["captures"])+2)
++            self.assertEqual([x["source"] for x in row["capture"]],row["usage"]["copy"])
++            for index,capture in enumerate(row["capture"]):
++                self.assertEqual(capture["binder"],{"site":row["site"],"role":"capture","index":str(index)})
++                self.assertEqual(capture["use"],"copy")
++                binding=next(b for b in row["bindings"] if b["binder"] == capture["binder"])
++                self.assertEqual(binding["name"],raw["job"]["captures"][index])
++                self.assertEqual(binding["type"],capture["type"])
++            shared=next(b for b in row["bindings"] if b["binder"]["role"] == "generated" and b["binder"]["index"] == "0")
++            control=next(b for b in row["bindings"] if b["binder"]["role"] == "generated" and b["binder"]["index"] == "1")
++            shared_type,control_type=decode(shared["type"]),decode(control["type"])
++            self.assertEqual(shared_type["tag"],"Shared")
++            self.assertEqual(control_type["tag"],"Control")
++            self.assertEqual(shared_type["fields"]["job"],{"nominal":generation["nominals"][0]})
++            self.assertEqual(control_type["fields"]["job"],shared_type["fields"]["job"])
++            self.assertEqual(shared_type["fields"]["payload"],decode(sites[path+"/job/body"]["type"]))
++            self.assertEqual([x["kind"] for x in generation["success_bindings"]],["Shared","Control"])
++            self.assertEqual([x["binder"] for x in generation["success_bindings"]],[shared["binder"],control["binder"]])
++            interfaces.append({"site":path,"generation":generation,"interface":interface,"shared_type":shared_type,"captures":row["capture"],"frame":row["frame"],"complete_effect":decode(row["effect"])})
++        self.records.observe(case, full_response_file="response.stdout.json", fork_interfaces=interfaces,
++            site_count=len(sites), static_value_count=len(program["static_values"]), canonical_sha256=digest)
+         return response
+ 
+-    def test_normal_complete_source_interfaces_and_flow(self):
+-        response = self.exchange("normal")
+-        self.assertIsNone(response["diagnostic"])
+-        program = response["program"]
+-        data = self.records.cases["normal"]["data"]
+-        source = json.loads(data)
+-        self.assertEqual(program["schema"], "p8-runtime-checked-program-v1")
+-        self.assertEqual(program["profile"], "cm1-mlx-prefill-owner1-v1")
+-        self.assertEqual(program["sigma"], SIGMA)
+-        self.assertEqual(base64.b64decode(program["source"]["utf8_base64"], validate=True), data)
+-        self.assertEqual(program["source"]["bytes_sha256"], hashlib.sha256(data).hexdigest())
+-        canonical = json.dumps(source, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+-        self.assertEqual(program["source"]["canonical_sha256"], hashlib.sha256(canonical).hexdigest())
+-        nodes = [(path, value) for path, value in data_nodes(source["main"]["body"], ("main", "body"))
+-            if type(value) is dict and any(k in value for k in ("command", "expression", "value"))
+-            and any(type(value.get(k)) is str for k in ("command", "expression", "value"))]
+-        by_pointer = {pointer(path): value for path, value in nodes}
+-        sites = {item["site"]["pointer"]: item for item in program["sites"]}
+-        self.assertEqual(len(sites), len(program["sites"]))
+-        self.assertEqual(set(sites), set(by_pointer))
+-        for p, site in sites.items():
+-            frame = site["frame"]
+-            if frame is not None:
+-                if frame["kind"] == "ScopeExit":
+-                    self.assertEqual(by_pointer[p]["command"], "run")
+-                    self.assertEqual(frame["backend_return_contract"], CONTRACT)
+-                else: self.assertNotIn("backend_return_contract", frame)
+-        decode = wire_decoder(program)
+-        def commands(tag): return [(p, x) for p, x in by_pointer.items() if x.get("command") == tag]
+-        produces, loads, awaits, runs = commands("produce"), commands("load"), commands("await_cancel"), commands("run")
+-        self.assertEqual((len(produces), len(loads), len(awaits), len(runs)), (2, 2, 3, 2))
+-        self.assertEqual(len(commands("case")), 3)
+-        self.assertEqual(len(commands("new_owner")), 1)
+-        self.assertEqual(commands("new_owner")[0][1]["value"], {"value": "nat", "literal": 1})
+-        self.assertEqual([x["kernel"] for _, x in produces], ["Prefill32", "Prefill8"])
+-        self.assertEqual([x["owner"] for _, x in runs], [{"value": "var", "name": "owner"}] * 2)
+-        self.assertNotEqual(runs[0][1]["names"], runs[1][1]["names"])
+-        for p, _ in runs:
+-            self.assertEqual(sites[p]["frame"]["kind"], "ScopeExit")
+-            self.assertEqual(sites[p]["frame"]["backend_return_contract"], CONTRACT)
+-            self.assertEqual(sites[p]["frame"]["exception_policy"], "scope-drain-before-unwind")
+-            self.assertEqual(sites[p]["generation"]["kind"], "run")
+-        for p, raw in loads:
+-            self.assertEqual(raw["index"], {"value": "nat", "literal": 0})
+-            self.assertEqual(decode(sites[p]["type"]), ty("Word"))
+-            self.assertEqual(decode(sites[p + "/read"]["type"])["tag"], "Read")
+-        choice = ty("Sum", left=ty("Word"), right=ty("Unit"))
+-        for p, _ in awaits: self.assertEqual(decode(sites[p]["type"]), choice)
+-        for p, raw in commands("case"):
+-            self.assertEqual(raw["left"], {"command": "return", "value": {"value": "var", "name": raw["left_name"]}})
+-            self.assertEqual(raw["right"]["next"]["command"], "throw")
+-            self.assertEqual(raw["right"]["expression"]["name"], "body_error")
+-            self.assertEqual(decode(sites[p]["type"]), ty("Word"))
+-        for (p, raw), count in zip(produces, (32, 8)):
+-            self.assertEqual(decode(sites[p + "/argument"]["type"]), tokens_type(count))
+-            self.assertEqual(raw["cleanup"]["result"], {"type": "Word"})
+-            self.assertEqual(raw["cleanup"]["captures"], [])
+-            generation = sites[p]["generation"]
+-            interface = decode(generation["interface"])
+-            self.assertEqual(interface["ordered_sorts"], ["Job", "Task", "Invocation", "Region", "Access", "Access", "Region"])
+-            self.assertEqual(len(interface["facts"]), 9)
+-            result_facts = [f for f in interface["facts"] if f["tag"] in ("job", "result")]
+-            self.assertEqual(len(result_facts), 2)
+-            for fact in result_facts: self.assertEqual(fact["fields"]["result"], ty("Word"))
+-        # Inspect full existential Phi and body, not just its tag or counts.
+-        packs = [(p, x) for p, x in by_pointer.items() if x.get("value") == "pack"]
+-        self.assertEqual(len(packs), 1)
+-        pack_path, pack = packs[0]
+-        self.assertEqual(pack["witnesses"], [{"name": "AP"}])
+-        self.assertEqual(decode(sites[pack_path]["type"]), package_type())
+-        self.assertEqual(decode(sites[runs[0][0]]["type"]), package_type())
+-        unpack_path, unpack = commands("unpack")[0]
+-        self.assertEqual(unpack["names"], [{"name": "AJob", "sort": "Job"}])
+-        self.assertEqual(decode(sites[unpack_path]["generation"]["interface"]), package_type())
+-        historical_path, historical = awaits[-1]
+-        self.assertEqual(historical["shared"], {"value": "var", "name": "aShared"})
+-        historical_type = decode(sites[historical_path + "/shared"]["type"])
+-        self.assertEqual(historical_type, ty("Shared", job={"nominal": sites[unpack_path]["generation"]["nominals"][0]}, payload=ty("Word")))
+-        # The lexical command binding places all B work after A RUN's exit;
+-        # the exported copy use pins the eighth value to that aToken binder.
+-        a_bind = source["main"]["body"]["body"]
+-        self.assertEqual(a_bind["command"], "let_c")
+-        self.assertEqual(a_bind["name"], "aPackage")
+-        self.assertEqual(a_bind["first"], runs[0][1])
+-        self.assertEqual(a_bind["next"], unpack)
+-        b_path, b = produces[1]
+-        tail, tail_path, prefix = b["argument"], b_path + "/argument", []
+-        while tail.get("value") == "pair":
+-            prefix.append(tail["left"])
+-            tail, tail_path = tail["right"], tail_path + "/right"
+-        self.assertEqual(prefix, [{"value": "word", "literal": x} for x in (2127, 19010, 19287, 13098, 1724, 7344, 1626)])
+-        self.assertEqual(tail, {"value": "var", "name": "aToken"})
+-        a_token_path = next(p for p, x in by_pointer.items() if x.get("command") == "let_e" and x.get("name") == "aToken")
+-        definition = [x for x in sites[a_token_path]["bindings"] if x["name"] == "aToken"]
+-        self.assertEqual(len(definition), 1)
+-        self.assertIn(definition[0]["binder"], sites[tail_path]["usage"]["copy"])
+-        final_type = ty("Pair", left=ty("Word"), right=ty("Pair", left=ty("Word"), right=ty("Word")))
+-        self.assertEqual(decode(program["entry"]["result_type"]), final_type)
+-        self.records.observe("normal", sites=len(sites), static_values=len(program["static_values"]),
+-            source_counts={"produce": 2, "load": 2, "await_cancel": 3, "case": 3, "run": 2},
+-            exact_existential=package_type(), b_eighth_source_pointer=tail_path,
+-            b_eighth_copied_binder=definition[0]["binder"], historical_shared_type=historical_type,
+-            run_frames=[sites[p]["frame"] for p, _ in runs],
+-            scope="complete raw response saved; bounded interface assertions, not a full proof expansion or runtime observation")
+-
+-    def test_unknown_kernel_rejected(self): self.exchange("reject_unknown_kernel")
+-    def test_b_eighth_nat_rejected(self): self.exchange("reject_b_last_nat")
+-    def test_owner8_rejected_before_profile_execution(self): self.exchange("reject_owner8")
+-    def test_live_read_closure_rejected(self): self.exchange("reject_live_read_closure")
+-    def test_live_read_exists_rejected(self): self.exchange("reject_live_read_exists")
+-    def test_bare_shared_without_pack_rejected(self): self.exchange("reject_bare_shared")
+-    def test_source_cannot_supply_backend_contract(self): self.exchange("reject_source_contract")
+-
+-    def test_plain_scope_has_no_backend_return(self):
+-        response = self.exchange("plain_scope")
+-        scopes = [item for item in response["program"]["sites"] if item["node_kind"] == "command:scope"]
+-        self.assertEqual(len(scopes), 1)
+-        self.assertEqual(scopes[0]["frame"]["kind"], "ScopeExit")
+-        self.assertIsNone(scopes[0]["frame"]["backend_return_contract"])
+-        for item in response["program"]["sites"]:
+-            if item["frame"] is not None and item["frame"]["kind"] != "ScopeExit":
+-                self.assertNotIn("backend_return_contract", item["frame"])
+-        self.records.observe("plain_scope", scope_frame=scopes[0]["frame"])
+-
+-    def test_new_zero_and_unsupported_literal_profile(self):
+-        for case in ("new0", "new2_profile_unsupported"):
+-            with self.subTest(case=case):
+-                response = self.exchange(case)
+-                if case == "new0":
+-                    sites = {item["site"]["pointer"]: item for item in response["program"]["sites"]}
+-                    self.assertEqual(sites["/main/body/body"]["execution"], "ghost-only")
+-                    self.assertEqual(sites["/main/body"]["generation"]["kind"], "new-owner")
+-                    self.assertNotIn("backend_return_contract", sites["/main/body"]["frame"])
+-                    self.records.observe(case, zero_body_execution=sites["/main/body/body"]["execution"])
++    def cases(self, *names):
++        results=[]
++        for name in names:
++            with self.subTest(case=name): results.append(self.exchange(name))
+             if self.records.abort_reason is not None: break
++        return results
++
++    def test_targets(self):
++        program=self.exchange("targets")["program"]
++        self.assertEqual(sum(x["node_kind"] == "command:fork" for x in program["sites"]),2)
++        self.assertEqual(sum(x["node_kind"] == "command:produce" for x in program["sites"]),0)
++    def test_full_stable_result(self):
++        program=self.exchange("full_stable")["program"];decode=wire_decoder(program)
++        full=next(row for row in program["sites"] if row["node_kind"] == "command:fork" and any(b["name"] == "FullH" for b in row["bindings"]))
++        typ=decode(next(b["type"] for b in full["bindings"] if b["name"] == "FullH"))["fields"]["payload"]
++        fn=typ["fields"]["left"];package=typ["fields"]["right"]
++        self.assertEqual(fn["tag"],"Fn");self.assertEqual(fn["fields"]["kappa"]["tag"],"true")
++        self.assertEqual(package["binder"],"exists");self.assertEqual(package["facts"][0]["tag"],"result")
++        self.assertIn("command:call",[x["node_kind"] for x in program["sites"]])
++        self.assertIn("command:unpack",[x["node_kind"] for x in program["sites"]])
++    def test_compound_scope_capture(self): self.exchange("compound_scope")
++    def test_hidden_scope_interface(self): self.cases("hidden_scope_strong","hidden_scope_weak")
++    def test_shorter_scope(self): self.exchange("shorter_scope")
++    def test_hidden_read(self): self.cases("read_direct","read_closure","read_exists")
++    def test_affine_and_frame(self):
++        self.exchange("affine_capture")
++        program=self.exchange("affine_frame")["program"]
++        fork=next(x for x in program["sites"] if x["node_kind"] == "command:fork")
++        self.assertEqual(len(fork["frame"]["retained"]),1);self.assertEqual(fork["capture"],[])
++    def test_caller_kappa(self): self.cases("kappa_hold","kappa_call")
++    def test_exact_captures(self): self.cases("missing_capture","duplicate_capture")
++    def test_freshness_escape(self): self.cases("fresh_reuse","bare_shared")
++    def test_full_effect(self): self.exchange("missing_effect")
++    def test_bottom_paths(self):
++        self.exchange("bottom_child")
++        program=self.exchange("bottom_continuation")["program"]
++        row=next(x for x in program["sites"] if x["node_kind"] == "command:fork")
++        self.assertEqual(row["execution"],"unreachable-continuation")
++    def test_actual_waiter_source(self):
++        program=self.exchange("normal")["program"]
++        source=json.loads(self.records.cases["normal"]["data"])
++        rows=[value for _,value in data_nodes(source) if type(value) is dict]
++        commands=[value for value in rows if "command" in value]
++        self.assertEqual(sum(x["command"] == "produce" for x in commands),2)
++        self.assertEqual(sum(x["command"] == "load" for x in commands),2)
++        self.assertEqual(sum(x["command"] == "await_cancel" for x in commands),4)
++        self.assertEqual(sum(x["command"] == "request_cancel" for x in commands),2)
++        self.assertEqual(sum(x["command"] == "await" for x in commands),1)
++        b=next(x for x in commands if x["command"] == "produce" and x["kernel"] == "Prefill8")
++        tokens=[];tail=b["argument"]
++        while tail["value"] == "pair": tokens.append(tail["left"]);tail=tail["right"]
++        tokens.append(tail)
++        self.assertEqual(tokens,[{"value":"word","literal":x} for x in self.records.builder.m.B_PREFIX7]+[{"value":"var","name":"aToken"}])
++        w=next(x for x in commands if x["command"] == "fork")
++        self.assertEqual(w["job"]["result"],self.records.builder.WTYPE)
++        self.assertEqual(w["job"]["captures"],["AH"])
++        self.assertEqual(w["job"]["body"]["next"]["next"]["value"]["right"],{"value":"word","literal":7001})
++        self.records.observe("normal", trusted_policy_sites=self.records.builder.source_sites(source), b_arguments=tokens,
++            unique_N_D_source=True, waiter_complete_result=w["job"]["result"])
++    def test_lease_write_boundary(self): self.cases("open_lease","open_write")
+ 
+ 
+ class Result(unittest.TextTestResult):
+@@ -382,6 +354,7 @@
+ 
+ 
+ def main():
++    global METHOD_CASES, INPUT_CASES
+     deadline = time.monotonic() + 55
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("--output-dir", type=Path, required=True)
+@@ -390,23 +363,25 @@
+     output.mkdir(parents=True, exist_ok=False)
+     # Resolve only this frozen tree. INPUT_ORIGIN in the generator is metadata;
+     # neither that historical file nor a working checkout is imported/read.
+-    module_spec = importlib.util.spec_from_file_location("cm1_source_data", GENERATOR)
++    module_spec = importlib.util.spec_from_file_location("cm2_source_data", GENERATOR)
+     builder = importlib.util.module_from_spec(module_spec)
+     module_spec.loader.exec_module(builder)
+-    files = sorted((ROOT / "frontend").rglob("*.py")) + [GENERATOR, ROOT / "programs/a2_constructors.py", Path(__file__).resolve()]
++    METHOD_CASES = builder.METHOD_CASES
++    INPUT_CASES = tuple((method,case) for method,cases in METHOD_CASES for case in cases)
++    files = sorted((ROOT / "frontend").rglob("*.py")) + [GENERATOR, ROOT / "programs/build_cm1_programs.py", ROOT / "programs/a2_constructors.py", ROOT / "static-controls/check_open.py", Path(__file__).resolve()]
+     origins = [pin(p) for p in files]
+-    save(output / "inputs.json", {"schema": "cm1-static-inputs-v1", "root": str(ROOT),
++    save(output / "inputs.json", {"schema": "cm2-static-inputs-v1", "root": str(ROOT),
+         "python": pin(Path(sys.executable).resolve()), "python_version": sys.version,
+         "files": origins, "methods": [{"method": m, "case": c} for m, c in INPUT_CASES],
+         "outer_budget_seconds": 60, "internal_work_budget_seconds": 55,
+         "candidate_runtime_or_worker_started": False})
+     records = Records(output, builder, deadline)
+-    CM1StaticTests.records, Result.records = records, records
+-    suite = unittest.TestSuite(CM1StaticTests(method) for method, _ in METHOD_CASES)
++    CM2StaticTests.records, Result.records = records, records
++    suite = unittest.TestSuite(CM2StaticTests(method) for method, _ in METHOD_CASES)
+     result = unittest.TextTestRunner(verbosity=2, resultclass=Result).run(suite)
+     after = [pin(p) for p in files]
+     unchanged = after == origins
+-    summary = {"schema": "cm1-static-controls-v1", "planned_methods": len(METHOD_CASES),
++    summary = {"schema": "cm2-static-controls-v1", "planned_methods": len(METHOD_CASES),
+         "planned_cases": len(INPUT_CASES), "abort_reason": records.abort_reason,
+         "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors),
+         "input_files_unchanged": unchanged, "after": after,

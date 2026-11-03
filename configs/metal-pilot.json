@@ -1,0 +1,12 @@
+{
+  "purpose": "Initial physical-buffer handoff pilot, not LLM TTFT",
+  "shuffle_seed": 20261029,
+  "trials_per_configuration": 5,
+  "elements": 65536,
+  "iterations": 1024,
+  "b_iterations": 16,
+  "warmups": 1,
+  "submitted_windows": [1, 2, 4],
+  "scheduled_windows": [1],
+  "capacities": ["constrained", "relaxed"]
+}

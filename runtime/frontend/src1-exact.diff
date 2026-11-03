@@ -1,0 +1,201 @@
+--- JRD1/frontend/p8static/parser.py
++++ SRC1/frontend/p8static/parser.py
+@@ -60,7 +60,7 @@
+ }
+ ATOM_FIELDS={
+     'Alloc':{},'Raise':{},'Enter':{'scope':'id'},'Register':{'scope':'id'},
+-    'Issue':{'owner':'id'},'Read':{'owner':'id'},'HostInput':{'owner':'id'},'Need':{'job':'id','mode':'wait_mode'},
++    'Issue':{'owner':'id'},'Read':{'owner':'id'},'HostInput':{'owner':'id'},'HostResponse':{'owner':'id'},'Need':{'job':'id','mode':'wait_mode'},
+     'WaitDetach':{'job':'id'},'RequestCancel':{'job':'id'},'Drain':{'scope':'id'},
+ }
+ 
+--- JRD1/frontend/p8foundation/resolve.py
++++ SRC1/frontend/p8foundation/resolve.py
+@@ -28,7 +28,7 @@
+ }
+ ATOM_REFS = {"Alloc": {}, "Raise": {}, "Enter": {"scope": "Scope"},
+     "Register": {"scope": "Scope"}, "Issue": {"owner": "Owner"}, "Read": {"owner": "Owner"},
+-    "HostInput": {"owner": "Owner"},
++    "HostInput": {"owner": "Owner"}, "HostResponse": {"owner": "Owner"},
+     "Need": {"job": "Job"}, "WaitDetach": {"job": "Job"},
+     "RequestCancel": {"job": "Job"}, "Drain": {"scope": "Scope"}}
+ FOOT_SORTS = {"scope": ("Scope", "Region"), "lease": ("Scope", "Owner", "Epoch", "Lease", "Region"),
+--- JRD1/frontend/p8source/source_schema.py
++++ SRC1/frontend/p8source/source_schema.py
+@@ -16,7 +16,8 @@
+    "case":("value","left_name","left","right_name","right"),
+    "unpack":("package","names","name","body"), "drop":("value","next"),
+    "throw":("payload",), "rethrow":("failure",), "try":("body","failure_name","handler"),
+-   "load":("read","index"), "receive_request":("name","owner"), "await":("shared",), "await_cancel":("shared",),
++   "load":("read","index"), "receive_request":("name","owner"),
++   "offer_response":("name","owner","token"), "await":("shared",), "await_cancel":("shared",),
+    "new_owner":("value","names","name","body"),
+    "scope":("names","name","body"), "run":("owner","names","name","body"),
+    "produce":("scope","kernel","argument","names","cleanup","result_name","control_name","next"),
+@@ -41,6 +42,7 @@
+  ("command","try"):(("body","command"),("handler","command")),
+  ("command","load"):(("read","value"),("index","value")),
+  ("command","receive_request"):(("owner","value"),),
++ ("command","offer_response"):(("owner","value"),("token","value")),
+  ("command","await"):(("shared","value"),),
+  ("command","await_cancel"):(("shared","value"),),
+  ("command","new_owner"):(("value","value"),("body","command")),
+--- JRD1/frontend/p8source/sigma.py
++++ SRC1/frontend/p8source/sigma.py
+@@ -2,12 +2,13 @@
+ from dataclasses import dataclass
+ from p8foundation.model import node, require
+ 
+-SIGMA_ID="p8-ebd1-fixed-sigma-v1"
+-SIGMA_ABI="p8-ebd1-runtime-sigma-abi-v1"
++SIGMA_ID="p8-src1-fixed-sigma-v1"
++SIGMA_ABI="p8-src1-runtime-sigma-abi-v1"
+ OPERATIONS=(("Prefill32","kernel","qwen3-week3-mlx-prefill32-token1-v1"),
+             ("Prefill8","kernel","qwen3-week3-mlx-prefill8-token1-v1"),
+             ("body_error","pure","body-error-unit-v1"),
+-            ("B","host-input","ebd1-receive-request-tokens8-v1"))
++            ("B","host-input","ebd1-receive-request-tokens8-v1"),
++            ("B.response","host-response","src1-offer-response-word-v1"))
+ # Immutable host constants, never source-supplied capabilities. A fresh mapping
+ # is returned at each wire boundary; the internal registry uses an immutable node.
+ BACKEND_CONTRACT=(("id","p8-cm1-mlx-backend-return-v1"),
+@@ -19,6 +20,13 @@
+                      ("result_type","Tokens8"),("caller","init-main-job-only"),
+                      ("owner_authority","identity-only-no-storage-access"),
+                      ("submission","single-irrevocable-complete-request-v1"))
++HOST_RESPONSE_CONTRACT=(("id","src1-explicit-response-intent-v1"),
++                        ("port","B"),("registry_name","B.response"),
++                        ("command","offer_response"),("payload_type","Word"),
++                        ("result_type","Unit"),("caller","init-main-job-only"),
++                        ("owner_authority","identity-only-no-storage-access"),
++                        ("submission","single-valid-intent-after-receipt-v1"),
++                        ("commit","original-main-joined-all-source-safe-v1"))
+ 
+ def backend_contract(): return dict(BACKEND_CONTRACT)
+ def checked_backend_contract():
+@@ -26,6 +34,9 @@
+ def host_input_contract(): return dict(HOST_INPUT_CONTRACT)
+ def checked_host_input_contract():
+     return node("signature","host-input-contract",**host_input_contract())
++def host_response_contract(): return dict(HOST_RESPONSE_CONTRACT)
++def checked_host_response_contract():
++    return node("signature","host-response-contract",**host_response_contract())
+ 
+ def tokens_type(count):
+     result=node("type","Word")
+@@ -38,7 +49,8 @@
+         return node("signature","checked-registry",id=SIGMA_ID,abi=SIGMA_ABI,
+                     entries=tuple(node("signature","fixed",name=n,kind=k,implementation_id=i) for n,k,i in OPERATIONS),
+                     backend_contract=checked_backend_contract(),
+-                    host_input_contract=checked_host_input_contract())
++                    host_input_contract=checked_host_input_contract(),
++                    host_response_contract=checked_host_response_contract())
+     def pure(self,name):
+         require(name=="body_error","unregistered pure operation")
+         return (node("type","Unit"),),node("type","ErrorPayload")
+@@ -50,6 +62,10 @@
+         require(name=="B","unregistered host-input port")
+         return tokens_type(8)
+     def host_input_boundary(self): return checked_host_input_contract()
++    def host_response(self,name):
++        require(name=="B","unregistered host-response port")
++        return node("type","Word"),node("type","Unit")
++    def host_response_boundary(self): return checked_host_response_contract()
+ 
+ def fixed_sigma(): return FixedSigma()
+ def check_sigma(value):
+@@ -58,4 +74,5 @@
+ def wire_sigma():
+     return {"id":SIGMA_ID,"abi":SIGMA_ABI,
+             "operations":[{"name":n,"kind":k,"implementation":i} for n,k,i in OPERATIONS],
+-            "backend_contract":backend_contract(),"host_input_contract":host_input_contract()}
++            "backend_contract":backend_contract(),"host_input_contract":host_input_contract(),
++            "host_response_contract":host_response_contract()}
+--- JRD1/frontend/p8source/execution.py
++++ SRC1/frontend/p8source/execution.py
+@@ -13,7 +13,7 @@
+ 
+ RESPONSE="p8-runtime-frontend-response-v1"
+ PROGRAM="p8-runtime-checked-program-v1"
+-PROFILE="ebd1-external-request-owner1-v1"
++PROFILE="src1-response-offer-owner1-v1"
+ 
+ class ProfileError(Exception):
+     def __init__(self,code,message,path=()):
+--- JRD1/frontend/p8source/body.py
++++ SRC1/frontend/p8source/body.py
+@@ -400,6 +400,31 @@
+             return self.finish(tag,path,value.type,eps,(Normal(value,state),),
+                                (self.exception(state,failure),),(derivation,),
+                                detail=self.sigma.host_input_boundary())
++        if tag=="offer_response":
++            # This authority belongs to INIT's concrete Job/Task, not to an
++            # inherited world, lexical closure or the current invocation.
++            origin=state.pc.world.init_origin
++            require(origin is not None and isinstance(state.pc.caller,Caller)
++                    and state.pc.caller.job==origin.get("main")
++                    and state.pc.caller.task==origin.get("task"),
++                    "OFFER_RESPONSE requires original INIT main Job")
++            owner,state,owner_derivation=self.value(raw["owner"],state,path+("owner",))
++            token,state,token_derivation=self.value(raw["token"],state,path+("token",))
++            require(isinstance(owner.type,RNode) and owner.type.tag=="Owner","OFFER_RESPONSE needs Owner")
++            payload,result=self.sigma.host_response(raw["name"])
++            self.same(token.type,payload,state,"OFFER_RESPONSE token must be Word")
++            self.check_hold(owner,state);self.check_hold(token,state)
++            # An intent only. No access/scope safety, response, publication or
++            # outstanding-frame discharge is derived by this static rule.
++            view=node("view","ExternalResponseIntent",site=self.site(path),port=raw["name"],
++                      owner=owner.view,token=token.view)
++            value=self.made(result,view,state,"offer-response-result",(owner.hold,token.hold))
++            if expected is not None: self.same(value.type,expected,state,"OFFER_RESPONSE result type")
++            eps=effect(node("atom","HostResponse",owner=owner.type.get("owner")),node("atom","Raise"))
++            failure=node("failure","current-caller",caller=caller_key(state.pc.caller),site=self.site(path))
++            return self.finish(tag,path,value.type,eps,(Normal(value,state),),
++                               (self.exception(state,failure),),(owner_derivation,token_derivation),
++                               detail=self.sigma.host_response_boundary())
+         if tag=="load":
+             r,state,dr=self.value(raw["read"],state,path+("read",))
+             index,state,di=self.value(raw["index"],state,path+("index",))
+--- JRD1/frontend/p8source/inference.py
++++ SRC1/frontend/p8source/inference.py
+@@ -350,6 +350,19 @@
+             # This is type-only collection. The completed continuation is
+             # checked again by body.py, including its private INIT caller proof.
+             self.deferred.append((check_owner,"RECEIVE_REQUEST needs complete Owner",False));return result
++        if tag=="offer_response":
++            owner=self.value(raw["owner"],env,state);self.dependent.append(owner)
++            payload,output=self.checker.sigma.host_response(raw["name"])
++            self.value(raw["token"],env,state,payload)
++            self.unify(result,output)
++            def check_response_owner(default=False):
++                t=deref(owner)
++                if isinstance(t,Hole): return False
++                require(isinstance(t,RNode) and t.tag=="Owner","bottom OFFER_RESPONSE needs Owner")
++                return True
++            # Constraints infer types only; body.py rechecks INIT authority,
++            # effects and frame accounting with the completed continuation.
++            self.deferred.append((check_response_owner,"OFFER_RESPONSE needs complete Owner",False));return result
+         if tag=="load":
+             read=self.value(raw["read"],env,state)
+             self.dependent.append(read)
+--- JRD1/frontend/test_external_request.py
++++ SRC1/frontend/test_external_request.py
+@@ -66,15 +66,15 @@
+         result=prepare_execution(fixed_sigma(),g.encode(raw))
+         self.assertEqual(result["status"],"ready",result.get("diagnostic"))
+         program=result["program"]
+-        self.assertEqual(program["profile"],"ebd1-external-request-owner1-v1")
++        self.assertEqual(program["profile"],"src1-response-offer-owner1-v1")
+         self.assertEqual(program["sigma"],wire_sigma())
+         self.assertEqual(program["sigma"]["host_input_contract"],{
+             "id":"p8-ebd1-external-request-v1","port":"B","command":"receive_request",
+             "result_type":"Tokens8","caller":"init-main-job-only",
+             "owner_authority":"identity-only-no-storage-access",
+             "submission":"single-irrevocable-complete-request-v1"})
+-        self.assertEqual(program["sigma"]["id"],"p8-ebd1-fixed-sigma-v1")
+-        self.assertEqual(program["sigma"]["abi"],"p8-ebd1-runtime-sigma-abi-v1")
++        self.assertEqual(program["sigma"]["id"],"p8-src1-fixed-sigma-v1")
++        self.assertEqual(program["sigma"]["abi"],"p8-src1-runtime-sigma-abi-v1")
+ 
+     def test_full_external_input_controls_b_source_dataflow(self):
+         old=c2.waiter_source();new=g.source()

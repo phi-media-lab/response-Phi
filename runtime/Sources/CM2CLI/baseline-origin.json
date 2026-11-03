@@ -1,0 +1,9 @@
+{
+  "source": "/Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/Sources/RuntimeProbe/CompilerBridge.swift",
+  "destination": "/Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/Sources/CM1CLI/CompilerBridge.swift",
+  "bytes": 12951,
+  "sha256": "04c2cc81e31938a2ea9739e585a2bbb672b2e5ce8c7f88a3995dea10dd08cf2a",
+  "modified": true,
+  "initial_copy_unmodified": true,
+  "meaning": "The recorded source bytes/SHA describe the initial unchanged A2 copy, not the current candidate. CompilerBridge subsequently received the CPU direct-child lifetime revision; see source-revisions/cpu1-before-frontend-lifetime/revision.json and final freeze for current hashes."
+}

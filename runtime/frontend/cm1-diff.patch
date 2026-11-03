@@ -1,0 +1,112 @@
+--- /Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/execution.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/execution.py
+@@ -13,7 +13,7 @@
+ 
+ RESPONSE="p8-runtime-frontend-response-v1"
+ PROGRAM="p8-runtime-checked-program-v1"
+-PROFILE="a2-metal-publication-await-cancel-v1"
++PROFILE="cm1-mlx-prefill-owner1-v1"
+ 
+ class ProfileError(Exception):
+     def __init__(self,code,message,path=()):
+@@ -66,7 +66,7 @@
+         # remains executable; it is never a statically rejected allocation.
+         if family=="command" and value[family]=="new_owner":
+             operand=value["value"]
+-            needed(operand["value"]=="nat" and operand["literal"] in (0,8),"NEW execution profile requires a Nat literal 0 or 8",path)
++            needed(operand["value"]=="nat" and operand["literal"] in (0,1),"NEW execution profile requires a Nat literal 0 or 1",path)
+         for suffix,kind,child in reversed(source_children(value,family)): stack.append((path+suffix,kind,child))
+     return nodes
+ 
+@@ -174,6 +174,11 @@
+             needed(kind in ("Bind","GenBind","CallReturn","Try","ScopeExit"),"frame not in execution profile",path)
+             frame={"kind":kind,"retained":[self.binder(s.get("binder")) for s in f.get("remaining")],
+                    "normal_restore":"move-once","exception_policy":"try-restore" if kind=="Try" else "scope-drain-before-unwind" if kind=="ScopeExit" else "unwind-drop"}
++            if kind=="ScopeExit":
++                contract=f.get("backend_return_contract")
++                # This is checked frame metadata, not inferred from a source
++                # label or accepted as an externally supplied release proof.
++                frame["backend_return_contract"]=None if contract is None else dict(contract.fields)
+         generation=None
+         if family=="command" and raw[family] in ("new_owner","scope","run","produce","unpack"):
+             tag=raw[family];detail=d.get("detail")
+--- /Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/generation.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/generation.py
+@@ -228,7 +228,9 @@
+     frame=node("frame","ScopeExit",site=checker.site(path),scope=scope,parent=caller_key(state.pc.caller),
+                body_caller=caller_key(inner.pc.caller),remaining=state.snapshot(),
+                copy_slots=tuple(node("slot","copy",binder=bid,value=value.record()) for bid,value in state.slots.items() if copyable(value.type)),
+-               prerequisite="drain-and-joined",owned_release=epoch_origin,completed=False,interface=interface)
++               prerequisite="drain-ownjoin-and-backend-return" if run else "drain-and-joined",
++               backend_return_contract=checker.sigma.backend_return() if run else None,
++               owned_release=epoch_origin,completed=False,interface=interface)
+     normals=[]
+     for n in closed.normal:
+         restored=state.clone()
+--- /Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/producer.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/producer.py
+@@ -30,7 +30,7 @@
+     rho,gamma=kind
+     parameter,size=checker.sigma.kernel(raw["kernel"])
+     owner=one(state.pc.world,"owner",owner=rho)
+-    require(state.pc.world.size_equal(owner.get("size"),LiteralSize(size)).yes,"Fill8 requires static size=8")
++    require(state.pc.world.size_equal(owner.get("size"),LiteralSize(size)).yes,"kernel requires static Owner size="+str(size))
+     names,refs=fresh_names(raw,state,SORTS)
+     p,t,i,rP,aW,aC,rC=refs
+     source_names=state.pc.world.names if state.source_names is None else state.source_names
+--- /Users/fbsh/response-lab/results/core-language-runtime-await-cancel-a2/core-first-v1/source/frontend/p8source/sigma.py
++++ /Users/fbsh/response-lab/experiments/core-language-runtime-mlx-v1/frontend/p8source/sigma.py
+@@ -2,21 +2,40 @@
+ from dataclasses import dataclass
+ from p8foundation.model import node, require
+ 
+-SIGMA_ID="p8-m1-fixed-sigma-v1"
+-SIGMA_ABI="p8-runtime-sigma-abi-v1"
+-OPERATIONS=(("Fill8","kernel","fill8-metal-lcg32-v1"),("body_error","pure","body-error-unit-v1"))
++SIGMA_ID="p8-cm1-fixed-sigma-v1"
++SIGMA_ABI="p8-cm1-runtime-sigma-abi-v1"
++OPERATIONS=(("Prefill32","kernel","qwen3-week3-mlx-prefill32-token1-v1"),
++            ("Prefill8","kernel","qwen3-week3-mlx-prefill8-token1-v1"),
++            ("body_error","pure","body-error-unit-v1"))
++# Immutable host constants, never source-supplied capabilities. A fresh mapping
++# is returned at each wire boundary; the internal registry uses an immutable node.
++BACKEND_CONTRACT=(("id","p8-cm1-mlx-backend-return-v1"),
++                  ("allocation_kind","MLXPrefillOwner1"),("word_slots",1),
++                  ("private_kv_layers",28),("return_obligation","BackendReturn-v1"),
++                  ("unknown_policy","host-incomplete-sticky-v1"))
++
++def backend_contract(): return dict(BACKEND_CONTRACT)
++def checked_backend_contract():
++    return node("signature","backend-return-contract",**backend_contract())
++
++def tokens_type(count):
++    result=node("type","Word")
++    for _ in range(count-1): result=node("type","Pair",left=node("type","Word"),right=result)
++    return result
+ 
+ @dataclass(frozen=True)
+ class FixedSigma:
+     def checked(self):
+         return node("signature","checked-registry",id=SIGMA_ID,abi=SIGMA_ABI,
+-                    entries=tuple(node("signature","fixed",name=n,kind=k,implementation_id=i) for n,k,i in OPERATIONS))
++                    entries=tuple(node("signature","fixed",name=n,kind=k,implementation_id=i) for n,k,i in OPERATIONS),
++                    backend_contract=checked_backend_contract())
+     def pure(self,name):
+         require(name=="body_error","unregistered pure operation")
+         return (node("type","Unit"),),node("type","ErrorPayload")
+     def kernel(self,name):
+-        require(name=="Fill8","unregistered kernel")
+-        return node("type","Word"),8
++        require(name in ("Prefill32","Prefill8"),"unregistered kernel")
++        return tokens_type(32 if name=="Prefill32" else 8),1
++    def backend_return(self): return checked_backend_contract()
+ 
+ def fixed_sigma(): return FixedSigma()
+ def check_sigma(value):
+@@ -24,4 +43,5 @@
+     return value
+ def wire_sigma():
+     return {"id":SIGMA_ID,"abi":SIGMA_ABI,
+-            "operations":[{"name":n,"kind":k,"implementation":i} for n,k,i in OPERATIONS]}
++            "operations":[{"name":n,"kind":k,"implementation":i} for n,k,i in OPERATIONS],
++            "backend_contract":backend_contract()}

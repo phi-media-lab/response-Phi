@@ -1,0 +1,11 @@
+{
+  "shuffle_seed": 20261101,
+  "blocks": 5,
+  "strategies": ["whole", "32", "128", "512"],
+  "a_prompt_length": 64,
+  "a_decode_steps": 40,
+  "b_prompt_length": 1024,
+  "arrival_after_a_decode": 4,
+  "warmup": 1,
+  "seed": 7
+}

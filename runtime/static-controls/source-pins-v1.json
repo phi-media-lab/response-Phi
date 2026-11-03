@@ -1,0 +1,104 @@
+{
+  "schema": "cm2-frontend-source-pins-v1",
+  "executed": false,
+  "files": [
+    {
+      "path": "frontend/p8source/source_schema.py",
+      "bytes": 7952,
+      "sha256": "01cb8e423c16a4f96720249c15197bf2f6bb73a3dab2ac24640972f2ef7448f9",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/frontend/p8source/source_schema.py",
+        "bytes": 7316,
+        "sha256": "8e665b7face51ae8bb8bc45a8859a1bd6b3c5f4017a0a89f407d67d904d33d8a"
+      }
+    },
+    {
+      "path": "frontend/p8source/binding.py",
+      "bytes": 2014,
+      "sha256": "f52e5b1890d1494b97a51a4f0ccb8352cc6a6de8533dbb7567fd51dfd5d84006",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/frontend/p8source/binding.py",
+        "bytes": 1817,
+        "sha256": "9500373254da7c57cbe8672482af2e2a73f3420500d7f6ca68ac75ec82b7de5b"
+      }
+    },
+    {
+      "path": "frontend/p8source/body.py",
+      "bytes": 54720,
+      "sha256": "67e1dafd17d112df38f524bd62cc18de5394f01dba892163d33ae7b5db14b9e7",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/frontend/p8source/body.py",
+        "bytes": 54595,
+        "sha256": "9f0b5dde269020127b0c8edb9c8d2c8731069ca8b39a6c8737fd12205bcc521e"
+      }
+    },
+    {
+      "path": "frontend/p8source/annotations.py",
+      "bytes": 3355,
+      "sha256": "63c79b031d49581e6ac50095ca0a897f0cd7409ccf63a6239f4bc45604ed843c",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/frontend/p8source/annotations.py",
+        "bytes": 3275,
+        "sha256": "57c88ffff6f605c214de49eec503d4109e9f3e3988048781f4acb97f0ab20aaa"
+      }
+    },
+    {
+      "path": "frontend/p8source/execution.py",
+      "bytes": 15857,
+      "sha256": "b0ae174087e97037fe1899561a18b5ac8e52d0f73c23835e1812dbab3cf39499",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/frontend/p8source/execution.py",
+        "bytes": 15752,
+        "sha256": "0f469bba5f1b9a3bc124bc4743662b8195792366a3a5e719ed90878dc1331241"
+      }
+    },
+    {
+      "path": "frontend/p8source/inference.py",
+      "bytes": 25351,
+      "sha256": "57332a9f93ef566869942e2193a940bdf45ff955bcfa7ecf1558f26d0bcef903",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/frontend/p8source/inference.py",
+        "bytes": 24047,
+        "sha256": "fd43afed02fd9f66dec98606e7be83a43f44270422f685884a658bd9df237793"
+      }
+    },
+    {
+      "path": "frontend/p8source/fork.py",
+      "bytes": 8767,
+      "sha256": "bf73322f63b8a0f61554bd82383f16d57cf3baa66247e0a099b6e05018bf0aaa",
+      "baseline": null
+    },
+    {
+      "path": "Sources/RuntimeCore/Program.swift",
+      "bytes": 39245,
+      "sha256": "7e6e3580a46c1c561dfad276943be288b53c9ae8b90896dce84b6ef656479cee",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/Sources/RuntimeCore/Program.swift",
+        "bytes": 35682,
+        "sha256": "43148c082329cf8136b25f9218e6d48d2959b1bd378e21272f0a3d4e4a0371ec"
+      }
+    },
+    {
+      "path": "programs/build_cm2_programs.py",
+      "bytes": 19637,
+      "sha256": "bdfc3e50af02059a74a43e56c58cc61ef9bf755a6ddb8d1d87103053d5878743",
+      "baseline": null
+    },
+    {
+      "path": "static-controls/check_open.py",
+      "bytes": 1063,
+      "sha256": "aee56d6b1f6eb27e736d0bb13a7bb7d9491577a72755ffc5cff6537e55ab1149",
+      "baseline": null
+    },
+    {
+      "path": "static-controls/run_static.py",
+      "bytes": 23135,
+      "sha256": "fb582c339fc1a7e3c466aa14d67883f8bcd7e70a19e8bc2477b1fb5359ccd40a",
+      "baseline": {
+        "path": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-cm1/runtime-source-v2/source/static-controls/run_static.py",
+        "bytes": 24119,
+        "sha256": "f90149f0a0a2295dba91bdb1b018aacae1773100263fce97dc6157c407ea148b"
+      }
+    }
+  ]
+}
