@@ -26,9 +26,10 @@ import json
 import os
 from pathlib import Path
 
-LEGACY = Path("/Users/fbsh/response-lab/results/source-response-parent-host-close-src1b")
-DESIGN = Path("/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/"
-              "review/t01-full-graph-mutation-design-independent-v1/DESIGN-v1.json")
+LEGACY = Path(os.environ.get("RESPONSE_LAB_LEGACY", str(Path.home() / "response-lab/results/source-response-parent-host-close-src1b")))
+DESIGN = Path(os.environ.get("RESPONSE_LAB_DESIGN", str(Path.home() /
+              "response-lab/experiments/source-response-parent-host-close-v1/"
+              "review/t01-full-graph-mutation-design-independent-v1/DESIGN-v1.json")))
 
 BUILT = {"F01-01", "F02-01", "F03-01", "F04-01", "F04-02", "F05-01",
          "F06-01", "F06-02", "F07-01", "F07-02", "F07-04", "F10-01"}
@@ -40,7 +41,7 @@ BUILT = {"F01-01", "F02-01", "F03-01", "F04-01", "F04-02", "F05-01",
 # and have not yet had the independent-review acceptance the 12 carry.
 import json as _json
 CONSTRUCTED = {}
-_cres = Path("/Users/fbsh/response-lab-cc/results/src1b-convergence-v1/t01-construction/F08-results.json")
+_cres = Path(__file__).resolve().parents[3] / "results/src1b-convergence-v1/t01-construction/F08-results.json"
 if _cres.is_file():
     for _v, _r in _json.loads(_cres.read_text()).items():
         if _r.get("passed") is False and _r.get("admin_related"):

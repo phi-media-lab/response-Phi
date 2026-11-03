@@ -11,11 +11,11 @@ go under response-lab-cc. Run with -I.
 import hashlib, json, os
 from pathlib import Path
 
-LEG = Path("/Users/fbsh/response-lab/results/source-response-parent-host-close-src1b")
+LEG = Path(os.environ.get("RESPONSE_LAB_LEGACY", str(Path.home() / "response-lab/results/source-response-parent-host-close-src1b")))
 BASE = LEG
 F10 = LEG / "native-tool-T01-graph-F10-01-inputs-first-v1"
 BASE_BLOBS = LEG / "native-tool-T01-graph-baseline-first-v1/blobs"
-CC = Path("/Users/fbsh/response-lab-cc/results/src1b-convergence-v1/t01-construction/F13-01")
+CC = Path(__file__).resolve().parents[3] / "results/src1b-convergence-v1/t01-construction/F13-01"
 DELTA = CC / "delta"
 CASE = "F13-01"
 EDIT_ID = "F13-01:extra-pool-key"

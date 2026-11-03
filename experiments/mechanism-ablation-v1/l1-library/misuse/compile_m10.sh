@@ -3,8 +3,9 @@
 # API must make this FAIL. Saves the compiler diagnostic to the results dir.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/../../../.." && pwd)"
 SRC="$HERE/../Sources/AblationL1"
-OUT="${1:-/Users/fbsh/response-lab-cc/results/mechanism-ablation-v1/cpu-l1/M10}"
+OUT="${1:-$REPO/results/mechanism-ablation-v1/cpu-l1/M10}"
 mkdir -p "$OUT"
 swiftc -typecheck -sdk "$(xcrun --show-sdk-path)" \
   "$SRC/Owner.swift" "$SRC/Wait.swift" "$SRC/Session.swift" "$SRC/Support.swift" "$HERE/M10.swift" \

@@ -46,3 +46,9 @@ Do not commit:
 - abandoned experiment scaffolding.
 
 Tests and checks synthesize their own tiny inputs.
+
+The source-boundary check (`tools/check_release_tree.py`, run in CI) enforces the
+list above. It gates absolute paths in run wrappers (`.sh` / `.py`) only: pinned
+runtime contracts, provenance records, frozen diffs, test fixtures, and docs keep
+the exact recorded paths on purpose, because the verification chain checks them
+byte-for-byte.

@@ -3,7 +3,8 @@
 
 Stdlib only; CPU-only; no model, GPU, or network. Enforces the boundary stated
 in CONTRIBUTING.md so a change cannot publish raw results, model weights,
-credentials, oversized blobs, dangling symlinks, or broken README links.
+credentials, oversized blobs, dangling symlinks, broken README links, or a
+machine-specific absolute path in a run wrapper.
 
     python3 tools/check_release_tree.py --root .
 """
@@ -17,6 +18,18 @@ from pathlib import Path
 
 MAX_TRACKED_BYTES = 5 * 1024 * 1024
 WEIGHT_SUFFIXES = {".safetensors", ".gguf", ".bin", ".pt", ".ckpt", ".npz", ".onnx"}
+SCRIPT_SUFFIXES = {".sh", ".py"}
+SELF = "tools/check_release_tree.py"
+
+# Run wrappers must not hardcode a machine-specific absolute path. These files
+# are exempt because the path is load-bearing, not incidental: it is a pinned
+# runtime contract, a provenance record, or a frozen test fixture that the
+# verification chain checks byte-for-byte. See CONTRIBUTING.md.
+ABS_ALLOW = {
+    "runtime/backend/prepare_inputs.py",       # CM1 pinned-environment contract + provenance record
+    "runtime/programs/build_cm1_programs.py",  # embeds an INPUT_ORIGIN provenance record (path + SHA)
+}
+
 CRED_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9]{36}"),
     re.compile(r"gho_[A-Za-z0-9]{36}"),
@@ -53,7 +66,7 @@ def md_links(text: str):
             yield tgt
 
 
-def readable_text(path: Path, limit: int = 1024 * 1024) -> str | None:
+def readable_text(path: Path, limit: int = 2 * 1024 * 1024) -> str | None:
     try:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
             return None
@@ -125,11 +138,27 @@ def main() -> int:
             if not (root / tgt).exists():
                 errors.append(f"{readme}: broken relative link -> {tgt}")
 
-    # Warn-only: machine-specific absolute paths (portability, not a gate yet).
-    abs_hits = sum(1 for f in files
-                   if (t := readable_text(root / f)) is not None and ABS_PATH.search(t))
-    if abs_hits:
-        warnings.append(f"{abs_hits} tracked file(s) contain machine-specific absolute paths (/Users/.../); portability only")
+    # 7) Machine-specific absolute paths.
+    #    Hard gate on run wrappers (.sh / .py); other files may keep a path as a
+    #    pinned runtime contract, a provenance record, a test fixture, or docs.
+    by_design = 0
+    for f in files:
+        if f == SELF:
+            continue
+        text = readable_text(root / f)
+        if text is None or not ABS_PATH.search(text):
+            continue
+        gated = (Path(f).suffix.lower() in SCRIPT_SUFFIXES
+                 and f not in ABS_ALLOW
+                 and not f.startswith("tests/"))
+        if gated:
+            errors.append(f"machine-specific absolute path in run wrapper {f}; "
+                          f"use $HOME, a repo-relative path, or an env var")
+        else:
+            by_design += 1
+    if by_design:
+        warnings.append(f"{by_design} file(s) keep absolute paths by design "
+                        f"(pinned runtime contract, provenance records, test fixtures, or docs); not gated")
 
     for w in warnings:
         print(f"warning: {w}")
