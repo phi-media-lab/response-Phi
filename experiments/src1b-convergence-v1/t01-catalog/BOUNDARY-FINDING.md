@@ -125,3 +125,25 @@ Final: 15 solid negatives (12 original semantic-oracle + 3 cleanly-demonstrated 
 admin-pin). F13-01 driven twelve layers to the oracle, rejected wrong-reason, not credited.
 The graph-semantic 48 are the documented multi-day campaign; the reusable builder, the
 full twelve-layer gate map, and this oracle result are recorded for it.
+
+## The final barrier, identified at the oracle (2026-11-03)
+
+The oracle's "exact administrative file pin" (t01_inputs.py:250) hashes the evidence
+file and compares to its expected pin, which traces to the baseline's original_pin.
+So the 494 MB evidence blob I mutated is admin-locked to its original bytes: a raw
+content edit trips the content pin, and re-sealing that pin to the mutated bytes would
+make the content "original" again and erase the violation. A valid F13 negative cannot
+be made by editing that blob's bytes.
+
+Constructing a real F13 negative therefore requires knowing which specific evidence file
+the oracle parses for pool/page/request/receipt/return STRUCTURE and permits an edit to,
+and crafting the edit so the content pins are satisfied while the structural key-set
+check fires. That is per-family oracle-semantics expertise — exactly what the original
+bespoke assembly encodes and what a from-scratch session cannot reconstruct correctly.
+
+Conclusive characterization, established by driving F13-01 twelve layers to the oracle:
+each graph-semantic variant is a deep bespoke reconstruction through ~12 authentication
+layers AND requires oracle-internal knowledge of the editable structural target. The
+48 are a multi-day expert campaign. 15 solid negatives stand (12 original + 3 F08). The
+reusable builder, the twelve-layer gate map, and this oracle-level barrier are recorded
+for whoever runs the campaign.
