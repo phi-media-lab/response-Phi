@@ -33,6 +33,19 @@ DESIGN = Path("/Users/fbsh/response-lab/experiments/source-response-parent-host-
 BUILT = {"F01-01", "F02-01", "F03-01", "F04-01", "F04-02", "F05-01",
          "F06-01", "F06-02", "F07-01", "F07-02", "F07-04", "F10-01"}
 
+# Newly constructed in response-lab-cc via admin-pin corruption (F08 family):
+# each rejects at bootstrap with the family's administrative-input check, self-
+# policed in results/.../t01-construction/F08-results.json. These are bootstrap-
+# phase rejections (ValueError), distinct from the 12 semantic-oracle negatives,
+# and have not yet had the independent-review acceptance the 12 carry.
+import json as _json
+CONSTRUCTED = {}
+_cres = Path("/Users/fbsh/response-lab-cc/results/src1b-convergence-v1/t01-construction/F08-results.json")
+if _cres.is_file():
+    for _v, _r in _json.loads(_cres.read_text()).items():
+        if _r.get("passed") is False and _r.get("admin_related"):
+            CONSTRUCTED[_v] = _r.get("reject")
+
 
 def expected_description(variant):
     """The recorded expected error for a built variant, from its acceptance."""
@@ -91,6 +104,13 @@ def main():
             if vid in BUILT:
                 row = verify_built(vid)
                 row["mutation"] = variant_name
+            elif vid in CONSTRUCTED:
+                row = {"variant": vid, "status": "CONSTRUCTED-ADMIN-PIN", "mutation": variant_name,
+                       "reject": CONSTRUCTED[vid],
+                       "note": "built in response-lab-cc via admin-pin corruption; checker rejected at "
+                               "bootstrap for the family's administrative-input reason (self-policed); "
+                               "bootstrap-phase ValueError, not the semantic oracle; independent-review "
+                               "acceptance not yet run"}
             else:
                 if args.subset == "built":
                     continue

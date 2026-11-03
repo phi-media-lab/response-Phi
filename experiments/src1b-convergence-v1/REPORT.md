@@ -91,3 +91,18 @@ T01 图变异负例族计划 18 族 64 变体,此前手工装配了 12 个(每�
 **运行成本证据(定量)**。核查 legacy 的既有运行记录,单个 T01 检查器(`read_derived_t01.py`,读 626 MB、70,449 id、约 230 万节点的派生图)在重型族上每例耗时 19 到 26 分钟:P01 base 1572 秒、F01-01 1147 秒、F03-01 1296 秒、F05-01 1255 秒、F06-01 1271 秒;轻型族(F07-02、F07-04、F10-01)才 4 到 5 秒。因此余下 52 变体即使装配正确,仅检查器运行就是数小时到一天量级的串行campaign,加上在 626 MB SHA 链图上正确施加每族变异与依赖重算,不是一次会话能执行的任务。盲目赶工的具体危害是:一个依赖 SHA 重算出错的负例会因 SHA 失配(而非目标语义违规)被拒,从而假证检查器有效。这三点——正确性风险、每例约 20 分钟的运行成本、与建议 5 的直接冲突——共同决定了封顶是被成本强制的结论,不是可选偏好。本工作区不伪造无法验证的研究负例。
 
 **统一 runner 已写成并运行**。`t01-catalog/run_t01_catalog.py` 是一个自监管的参数化 runner:从冻结 DESIGN 枚举全部 64 变体,对 12 个已装配变体独立复核其记录的拒绝——检查器报告必须 passed=false 且 OracleError 描述匹配该族的预期错误,且 root 验收为 complete-exact-expected-semantic-rejection,三者齐备才记 VALIDATED;对 52 个未装配变体发出带族变异名与预期错误的构造任务,不伪造。运行结果:`results/src1b-convergence-v1/t01-catalog-v1/catalog.json`,12 VALIDATED、52 CONSTRUCTION-PENDING。自监管的意义:一个 SHA 重算出错的变异会以错误原因被拒,runner 记为 WRONG-REASON 而非 VALIDATED,因此 runner 不可能把错误负例当成有效负例。构造那 52 个仍是 root 排期的计算 campaign(重型族每例约 20 分钟,叠加 626 MB SHA 链图上的正确变异),由该 runner 驱动;本会话写成并跑通了 runner,没有伪造其输出。
+
+## 9. 实际构造：F08 管理输入族四变体已建成（12 → 16）
+
+在写成 runner 后,我进一步实际构造了可正确且低成本构造的一族。F08(administrative-input)四变体的变异是对 invocation 中管理输入 pin 的篡改,检查器在 bootstrap 阶段、读 626 MB 图之前就校验这些 pin,因此拒绝快(每例约 0.002 秒)且无需图上 SHA 手术。用正确 v2 schema 的 invocation 模板,逐一篡改对应 pin 并重算 invocation sha,跑真实 `read_derived_t01.py`,结果:
+
+| 变体 | 篡改 | 检查器拒绝（self-policed 为管理输入原因） |
+| --- | --- | --- |
+| F08-01 runtime-source-after-change | source_files pin | actual source is exact separately frozen original |
+| F08-02 python-after-change | python_executable pin | interpreter current exact identity |
+| F08-03 (reader/interpreter image) | reader_inputs/interpreter pin | actual interpreter executable and OS image |
+| F08-04 omit-after-input-row | 删一条 source 行 | exact eight adapter sources |
+
+四例都 passed=false 且因管理输入检查被拒,自监管通过。证据 `results/src1b-convergence-v1/t01-construction/`,catalog 见 `t01-catalog-v2/catalog.json`(12 VALIDATED + 4 CONSTRUCTED-ADMIN-PIN + 48 CONSTRUCTION-PENDING)。
+
+诚实边界:这四例在 bootstrap 以 ValueError 被拒,属于管理输入校验,与原 12 例的语义 oracle(OracleError)拒绝是不同阶段;它们尚未走原 12 例那套独立审阅验收,故记为 CONSTRUCTED-ADMIN-PIN 而非与 12 例同级的 VALIDATED。F08 之所以能快速正确构造,是因为它恰好是 pin 篡改、bootstrap 早拒;其余 48 个(F05-02、F07-03、F09、F11–F18)是语义图变异,必须由 oracle 在 626 MB 图上捕获,既需每例约 20 分钟的重型运行,也需正确的图变异构造——用 pin 篡改去冒充它们会以错误原因被拒(WRONG-REASON),不是有效负例。因此 F08 可建而其余 48 仍是重型 campaign,这个分界本身就是结论。
