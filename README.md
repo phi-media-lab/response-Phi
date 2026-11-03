@@ -2,6 +2,8 @@
 
 [简体中文](README.zh-CN.md)
 
+[![CPU checks](https://github.com/phi-media-lab/response-Phi/actions/workflows/cpu-ci.yml/badge.svg)](https://github.com/phi-media-lab/response-Phi/actions/workflows/cpu-ci.yml)
+
 Response Lab Phi is the local-inference responsiveness and cancellation-semantics
 component of the Phi stack. Developed by Phi Media Lab for Apple silicon (the
 Apple M1) and the MLX runtime, it studies how a local language-model request can
@@ -172,4 +174,4 @@ tiny-llm, and Swift reference trees are imported read-only with their revision
 and environment recorded, and raw result dumps stay out of version control. Each
 retains its own terms.
 
-See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+See [LICENSE](LICENSE), [NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

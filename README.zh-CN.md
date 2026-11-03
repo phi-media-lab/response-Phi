@@ -2,6 +2,8 @@
 
 [English](README.md)
 
+[![CPU checks](https://github.com/phi-media-lab/response-Phi/actions/workflows/cpu-ci.yml/badge.svg)](https://github.com/phi-media-lab/response-Phi/actions/workflows/cpu-ci.yml)
+
 Response Lab Phi 是 Phi 技术栈中研究本地推理响应性与取消语义的组件。由 Phi Media Lab
 面向 Apple 芯片(Apple M1)与 MLX 运行时开发,研究本地语言模型请求如何被取消、其设备侧
 工作如何真正完成、以及常驻 GPU 的资源如何交接给下一个请求 —— 并把这些步骤的安全次序,
@@ -151,4 +153,4 @@ python3 -I experiments/src1b-convergence-v1/t01-catalog/run_t01_catalog.py \
 文档。MLX 运行时与 Qwen3-0.6B 模型权重是外部依赖,不在此分发;PriML、tiny-llm 与 Swift
 参考源码树以只读方式导入,并记录其修订与环境,原始结果转储不入版本库。各自保留其条款。
 
-见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。
+见 [LICENSE](LICENSE)、[NOTICE](NOTICE) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
