@@ -100,9 +100,24 @@ def main():
     mp_path = CC / "mapping.json"; mp_bytes = dump(mp); mp_path.write_bytes(mp_bytes)
     mp_pin = {"path": str(mp_path), "bytes": len(mp_bytes), "sha256": hashlib.sha256(mp_bytes).hexdigest()}
 
+    # 3b. projection.json: case_id + dependencies reset to our four invocation pins.
+    #     Entries are initial-only (P00 identity); a pool-content edit does not change
+    #     registration, so they carry over unchanged. projection_pin is referenced by
+    #     the spec and the case-authorization, so it is sealed before them.
+    # Use the P00 all-identity registration projection: a pool-content edit does not
+    # change registration, so every entry stays identity. (F10's projection carried
+    # F10's own 3 edits, which are unchanged in our graph and fail the identity check.)
+    P00PROJ = LEG / "native-tool-T01-graph-P00-inputs-first-v1/projection.json"
+    pr = json.loads(P00PROJ.read_bytes())
+    pr["case_id"] = CASE
+    pr["dependencies"] = {"baseline_pin": inv["baseline_pin"], "edits_pin": ed_pin,
+                          "mapping_pin": mp_pin, "authority_pin": inv["authority_pin"]}
+    pr_path = CC / "projection.json"; pr_bytes = dump(pr); pr_path.write_bytes(pr_bytes)
+    pr_pin = {"path": str(pr_path), "bytes": len(pr_bytes), "sha256": hashlib.sha256(pr_bytes).hexdigest()}
+
     # 4. specification.json
     sp["case_id"] = CASE; sp["kind"] = "negative"
-    sp["edits_pin"] = ed_pin; sp["mapping_pin"] = mp_pin
+    sp["edits_pin"] = ed_pin; sp["mapping_pin"] = mp_pin; sp["projection_pin"] = pr_pin
     obligation = "Exact source-constructed pool/page/request/receipt/return"
     sp["all_exact_target_logical_paths_pointers_spans_old_values_and_new_values"] = [{
         "edit_id": EDIT_ID, "logical_path": logical, "json_pointer": "/pool/extra-key-insertion",
@@ -134,6 +149,7 @@ def main():
         if k == "edits_pin": dep_pins[k] = ed_pin
         elif k == "mapping_pin": dep_pins[k] = mp_pin
         elif k == "mutation_case_specification": dep_pins[k] = sp_pin
+        elif k == "projection_pin": dep_pins[k] = pr_pin
         else: dep_pins[k] = inv[k]
     auth = {"schema": "src1b-T01-replay-case-authorization-v1", "accepted": True,
             "at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), "case_id": CASE,
@@ -145,9 +161,15 @@ def main():
 
     # 5. invocation.json  (exact_argv_template must point --invocation at itself
     #    and --output at a fresh driver/report.json under BASE, per the outer wrapper.)
+    # ReaderInputs is unchanged in our graph (we reverted F10's edit), so the
+    # invocation's reader_inputs_sha256 must be its ORIGINAL sha, not F10's mutated one.
+    _ri = [fr for fr in baseline["files"] if "ReaderInputs" in fr["logical_requested_path"]]
+    if _ri:
+        inv["reader_inputs_sha256"] = _ri[0]["original_pin"]["sha256"]
     inv["case_id"] = CASE
     inv["edits_pin"] = ed_pin; inv["mapping_pin"] = mp_pin; inv["mutation_case_specification"] = sp_pin
     inv["case_authorization"] = auth_pin
+    inv["projection_pin"] = pr_pin
     for _k, _v in dep_pins.items(): inv[_k] = _v
     inv_path = CC / "invocation.json"
     PYBIN = "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14"

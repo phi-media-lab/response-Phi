@@ -98,3 +98,30 @@ Status: 15 solid (12 original semantic-oracle + 3 cleanly-demonstrated F08 admin
 F13-01 driven nine layers deep but not past projection regeneration; the graph-semantic
 remainder is the documented multi-day campaign, with the reusable builder
 (build_f13_01.py) and this gate map left for it.
+
+## F13-01 reached the oracle (twelve layers) — decisive result (2026-11-03)
+
+Continuing the hands-on attempt, I cleared three more layers beyond the first nine:
+10. Registration identity — the projection must be all-identity (P00), since F10's carried-over projection reflected F10's own edits.
+11. ReaderInputs exact bytes — the invocation's reader_inputs_sha256 must be the original (I had reverted F10's ReaderInputs edit).
+12. The ORACLE RAN. It reached t01_core_oracle and raised OracleError, with clean infrastructure_errors.
+
+But the oracle's error is "exact administrative file pin", not F13's declared obligation
+"Exact source-constructed pool/page/request/receipt/return". My raw content edit to the
+evidence blob trips the oracle's content-pin check on that file BEFORE any pool-structure
+check, so the comparator's "exact frozen original first error type/message" fails and the
+self-policing correctly refuses to credit it: a wrong-reason rejection is not a valid
+negative.
+
+A valid F13 negative therefore requires crafting the mutation so the oracle ACCEPTS the
+evidence content (its content pin re-sealed to the mutated bytes, wherever that pin lives
+in the authority/graph) and then trips the exact pool-structure check — i.e. the
+per-family oracle-semantics knowledge, cascading past layer 12. This is the concrete,
+hands-on proof that each graph-semantic variant is a deep bespoke reconstruction reaching
+into the oracle's own content pins, not a mechanical edit. F13-01 was driven all the way
+to the oracle in one session; a clean verdict needs the assembler's per-family semantics.
+
+Final: 15 solid negatives (12 original semantic-oracle + 3 cleanly-demonstrated F08
+admin-pin). F13-01 driven twelve layers to the oracle, rejected wrong-reason, not credited.
+The graph-semantic 48 are the documented multi-day campaign; the reusable builder, the
+full twelve-layer gate map, and this oracle result are recorded for it.
