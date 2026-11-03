@@ -147,3 +147,22 @@ layers AND requires oracle-internal knowledge of the editable structural target.
 48 are a multi-day expert campaign. 15 solid negatives stand (12 original + 3 F08). The
 reusable builder, the twelve-layer gate map, and this oracle-level barrier are recorded
 for whoever runs the campaign.
+
+## Why the general approach cannot build F13 — proven at the oracle (2026-11-03)
+
+F13's pool/page/request/receipt/return objects live only in the admin-locked 494 MB
+evidence blob (content-pinned to the baseline original). The editable files the oracle
+permits edits to — the ones F10-01 successfully changed (repair-tool, after-session,
+ReaderInputs) — contain ZERO pool markers. So an F13 "extra-pool-key" negative cannot be
+produced either by editing the pool bytes (that trips the admin content pin) or by
+targeting an editable file (no pools there). It requires the design's specific per-family
+mechanism for injecting a pool-structure violation into the oracle's reconstruction while
+keeping every content pin satisfied — the oracle-internal expertise the original bespoke
+assembly encodes across its ~100 directories.
+
+This is the terminal, hands-on conclusion. A graph-semantic variant is not a mechanical
+re-seal: it needs per-family knowledge of where and how the oracle reconstructs each
+structure and which file is the editable injection point. Driving F13-01 twelve layers to
+the oracle established this by execution. The 48 graph-semantic variants are a multi-day
+expert campaign; 15 solid negatives stand (12 original semantic-oracle + 3 F08 admin-pin),
+and the reusable builder, the twelve-layer gate map, and this oracle barrier are recorded.
