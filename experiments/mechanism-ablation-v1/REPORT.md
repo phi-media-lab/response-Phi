@@ -67,9 +67,9 @@ L1 的同类 stub 时间线由移植报告给出（取消到等待返回 0.406�
 
 三级别共用 worker，worker 的拒绝对所有级别相同，本实验只度量宿主侧差异。CPU stub 的时间不是真实模型延迟。n=1 每情境，不支持尾延迟或最坏界。M10 在 L0/L1 只有编译观察，无运行时证据。L2 机制行数包含 CM2 路径之外的功能。
 
-## 7. 真实 MLX 的 N 情境（每级一次，root 串行执行）
+## 7. 真实 MLX 的 N 情境（每级三次，root 串行执行）
 
-三个级别的 N 情境已在真实 Apple MLX worker（`runtime/backend/worker.py`，GPU，Qwen3-0.6B-MLX-4bit）上各跑一次,与本工作区修复后的运行时。全部 exit 0,A/B 首 token 均为参考值 72/271,与 CM2、SMWO1 一致。
+三个级别的 N 情境已在真实 Apple MLX worker（`runtime/backend/worker.py`，GPU，Qwen3-0.6B-MLX-4bit）上各跑三次,与本工作区修复后的运行时。九次全部 exit 0,A/B 首 token 均为参考值 72/271,与 CM2、SMWO1 一致,三次复现一致。证据 `gpu-l{0,1,2}/N`、`N-run2`、`N-run3`。
 
 | 级别 | 结果 | A/B token | 取消→等待返回 | 取消→A 归还确认 | 会话总时长 |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -77,6 +77,6 @@ L1 的同类 stub 时间线由移植报告给出（取消到等待返回 0.406�
 | L1 库 | passed | 72 / 271 | 见 result.json | 见 result.json | 6.506 s |
 | L2 受检 PL | passed | 72 / 271 | Core 事件流 | Core 事件流 | 11.036 s |
 
-证据:`results/mechanism-ablation-v1/gpu-l0/N`、`gpu-l1/N`、`gpu-l2/N`。L0 的时间线显示取消在 0.033 ms 返回,而真实 prefill 的 join 在约 79 ms 到达,归还确认约 80.6 ms,B 的 receipt 约 115 ms,shutdown 约 759 ms。三段延迟分离,起点不同不相加,每级 n=1,不是上界。L2 由规范运行时 cm2-checked 加 CM2 的 normal.json 源程序,走 FORK 等待者取消加 owner KV 归还的完整受检路径。
+L0 的时间线显示取消在 0.033 ms 返回,而真实 prefill 的 join 在约 79 ms 到达,归还确认约 80.6 ms,B 的 receipt 约 115 ms,shutdown 约 759 ms。三段延迟分离,起点不同不相加,每级 n=1,不是上界。L2 由规范运行时 cm2-checked 加 CM2 的 normal.json 源程序,走 FORK 等待者取消加 owner KV 归还的完整受检路径。三次复现同一结果,安全排序不是单次偶然。
 
-这补上了第 1 节标注的"真实 MLX 的 N 情境未跑":消融的安全排序结论现在在三级别上都有真实模型证据,而不只是 CPU stub。worker 共用底座的结论因此更稳:同一个真实 worker 对三级别给出相同 token 与相同归还协议,宿主侧差异仍只在第 2 节的误用矩阵里。
+这补上了第 1 节标注的"真实 MLX 的 N 情境未跑":消融的安全排序结论现在在三级别上各有 n=3 真实模型证据,而不只是 CPU stub 或单次。worker 共用底座的结论因此更稳:同一个真实 worker 对三级别给出相同 token 与相同归还协议,宿主侧差异仍只在第 2 节的误用矩阵里。
