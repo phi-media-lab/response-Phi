@@ -122,3 +122,17 @@
 - 同一行里的多个毫秒值通常共用起点但区间嵌套，不能相加；各报告都明确禁止相减两个边际中位数来替代配对差。
 - "n" 为 1 或 2 的行只支持事件次序与数值正确性，不支持任何性能排序；要把它们写成性能结论必须先补样本。
 - 新实验的结论请追加到本表并把引用文件登记进 `CONCLUSIONS.evidence.json`，不要再往 README、ROADMAP、STATUS 的开头段落里加写。
+
+## response-lab-cc 新增执行（2026-11-03）
+
+本节记录在 response-lab-cc 工作区新产生的结论，与上面的 legacy 账本同格式。证据路径相对本工作区根。
+
+| 编号 | 结论 | 证据路径 | n | 边界 | 性质 |
+| --- | --- | --- | --- | --- | --- |
+| CC-01 | 规范运行时在修复后仍通过 CM2 的 CPU 门（六源七组八串行 worker，C1 到 C7），C7 丢 ACK 情境保持 Unresolved 且 B 不准入 | results/runtime-fixes-v1/cm2-cpu-run-v1/driver/result.json | 1 | CPU stub，非 GPU | 已建立 |
+| CC-02 | 运行时修复：prepared 注册提交失败现在实际 abort 并 join 原 Task（abortPreparedRegistration 接通），applyFrontier 抛错使 β 与 scope 进入 Unresolved 而非留在 Active，响应仲裁与归还路径的 precondition 改为记录的协议违规而非进程崩溃 | runtime/Sources/RuntimeCore/Ledger.swift, runtime/Sources/CM2CLI/HostSupport.swift, runtime/Sources/MLXTransport/Support.swift | 构建加 CPU 门 | 仅 CPU 验证；崩溃路径的消除未在 GPU 复核 | 已建立 |
+| CC-03 | 机制消融首批：worker 线级状态机对三级别共用，已拒绝 M2/M3/M4/M5/M8；宿主机制的边际价值集中在 join 先于归还、ACK 身份与丢失、所有权与取消权三处 | experiments/mechanism-ablation-v1/REPORT.md | 每情境 1，CPU stub | 共用 worker，只度量宿主侧差异；真实 MLX 的 N 情境未跑 | 已建立 |
+| CC-04 | L0 手写协议在 M1 归还前未 join、M6 ACK 身份错、M7 丢 ACK 三处静默失败（worker 接受，宿主无账本阻拦）；L1 运行时账本与 L2 受检 PL 堵住这三处 | results/mechanism-ablation-v1/cpu-l0/, cpu-l1/REPORT.md | 每误用 1，CPU stub | M10 在 L0/L1 只有编译观察 | 已建立 |
+| CC-05 | 语言层相对库的唯一结构性增量是 M9/M10（所有权与取消权）：L1 靠会话单租约与私有句柄（动态、同模块可绕过），L2 靠 BackendOwnerBusy 与显式 Control 授予（结构性） | experiments/mechanism-ablation-v1/REPORT.md, docs/SWIFT_EXPRESSIVENESS_GAPS.md | M9 运行时 1，M10 仅编译 | M10 无运行时证据 | 已建立 |
+| CC-06 | SRC1 B 十个父子组合情境首次执行：组合 trial 与 oracle 修正检查十案全通过；八个正常情境在宿主收尾挂起（trial 产出后未写 result.json，55 秒超时 SIGTERM），两个异常退出情境（看门狗、基础设施故障）完整通过 | experiments/src1b-convergence-v1/REPORT.md | 每情境 1，CPU stub | 收尾挂起未修复；非 GPU；非真实 MLX | 负结果加未验收 |
+| CC-07 | SRC1 B 的收尾挂起不是本轮运行时修复引入：ParentEntryRoots 未改动，被改的门经 diff 与原语义等价且不在父组合 CPU fixture 路径上 | experiments/src1b-convergence-v1/REPORT.md, runtime/CHANGES.json | 代码核对 | 根因定位到 work Task 产出后 completion cell 未落地，尚未修复 | 已建立 |

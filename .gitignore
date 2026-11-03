@@ -5,3 +5,9 @@
 .venv/
 *.pyc
 results/.tmp-*
+
+# Raw experiment result dumps are regenerable and large (stub CPU runs can
+# inflate to many GB when the worker snapshots pools while reading the 11 MB
+# tokenizer). Keep them on disk with their run.json/ORIGIN provenance; track
+# only source, docs, reports, and manifests. See docs/CONCLUSIONS.md.
+/results/

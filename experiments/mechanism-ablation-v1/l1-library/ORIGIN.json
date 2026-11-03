@@ -1,0 +1,49 @@
+{
+ "schema": "ma1-l1-origin-v1",
+ "at_utc": "2026-11-03T04:22:53.122695+00:00",
+ "note": "L1 dynamic-ledger library ported from SMWO1 (swift-mlx-wait-owner-v1). Owner/Wait/Support imported byte-identical then Session.swift wire format ported to cm1-inputs-v1; Main.swift rewritten as the per-scenario program; CPU.swift not imported (SMWO1-specific 13-control suite).",
+ "source_files": [
+  {
+   "file": "Owner.swift",
+   "path": "/Users/fbsh/response-lab-cc/legacy/experiments/swift-mlx-wait-owner-v1/Owner.swift",
+   "bytes": 6881,
+   "sha256": "ef3557b49d64fc3fb85cf67b44f940688da5d8c345b70623d4025f3c747edf41",
+   "imported": true
+  },
+  {
+   "file": "Wait.swift",
+   "path": "/Users/fbsh/response-lab-cc/legacy/experiments/swift-mlx-wait-owner-v1/Wait.swift",
+   "bytes": 6959,
+   "sha256": "7bd638f4511a870f5943d9e7f418ece1d47737362108617aa222cc14b536111c",
+   "imported": true
+  },
+  {
+   "file": "Session.swift",
+   "path": "/Users/fbsh/response-lab-cc/legacy/experiments/swift-mlx-wait-owner-v1/Session.swift",
+   "bytes": 37212,
+   "sha256": "34f4918d9c9cfc9d63661991bf98e6bb0cb99e7b0d3695848a47de97c0a38c35",
+   "imported": true
+  },
+  {
+   "file": "Support.swift",
+   "path": "/Users/fbsh/response-lab-cc/legacy/experiments/swift-mlx-wait-owner-v1/Support.swift",
+   "bytes": 11301,
+   "sha256": "c4313f7cdea2128b5812a9bbdff621943224ef093f0c17f91307fb665a320f27",
+   "imported": true
+  },
+  {
+   "file": "Main.swift",
+   "path": "/Users/fbsh/response-lab-cc/legacy/experiments/swift-mlx-wait-owner-v1/Main.swift",
+   "bytes": 13086,
+   "sha256": "2802a9878e71b98b91acff2804ecea57bcc2f3008c1cea2ab0d32a3188a647e1",
+   "imported": false
+  },
+  {
+   "file": "CPU.swift",
+   "path": "/Users/fbsh/response-lab-cc/legacy/experiments/swift-mlx-wait-owner-v1/CPU.swift",
+   "bytes": 12418,
+   "sha256": "ff736e238e823df20c1afcf5c9276b2533194874b1a116bb671ac4f3ac2dfb13",
+   "imported": false
+  }
+ ]
+}
