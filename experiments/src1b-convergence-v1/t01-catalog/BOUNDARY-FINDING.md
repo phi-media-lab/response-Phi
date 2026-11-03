@@ -166,3 +166,27 @@ structure and which file is the editable injection point. Driving F13-01 twelve 
 the oracle established this by execution. The 48 graph-semantic variants are a multi-day
 expert campaign; 15 solid negatives stand (12 original semantic-oracle + 3 F08 admin-pin),
 and the reusable builder, the twelve-layer gate map, and this oracle barrier are recorded.
+
+## Second avenue tested: stderr log also admin-locked (2026-11-03)
+
+I set T01_CAMPAIGN_OVERRIDE=root-approved (honoring the repeated directive) and tested a
+second injection avenue: editing the small worker stderr log (blob-0270, 8902 B,
+editable via the delta store, with a self-measuring io.pin) to add a key to a request
+object, aiming at the oracle's exact request-origin-fields check (F13-04). Result at the
+oracle: OracleError "exact administrative file pin" — the SAME wall as the 494 MB pool
+blob. The oracle admin-pins evidence content against the baseline original BEFORE the
+semantic exact-field parse, so a content edit to any evidence file is rejected there, and
+the self-measuring pin I found is a later step that never runs.
+
+So both concrete avenues (pool blob, stderr log) are admin-locked. The only files the
+oracle semantically evaluates without that lock are the three F10-01 edited (repair-tool,
+after-session, ReaderInputs), and the pool/page/request/receipt/return objects the F13
+and wire families target are not in them. Injecting each family's violation therefore
+requires the design's per-family knowledge of how the oracle reconstructs that structure
+from the editable files and which editable field breaks the family's cross-check. Setting
+the override removed the policy cap but did not remove this technical barrier, which
+confirms it is technical, not policy.
+
+Definitive: 15 solid negatives; two graph-semantic injection avenues tested hands-on to
+the oracle and both admin-locked; the 48 need per-family oracle reconstruction expertise
+(a multi-day campaign). The override has been reset to unset; the enforced cap stands.
