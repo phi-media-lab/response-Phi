@@ -1,0 +1,21 @@
+{
+  "schema": "t01-generation-cap-v1",
+  "policy": "Recommendation 5 enforced cap on T01 self-verification generation. The T01 graph-mutation negative family is held at the variants already built with correct, self-policed rejection. Generating further graph-semantic variants is refused by the construction tooling unless root sets the explicit override, because each remaining variant is a multi-day per-family oracle-injection reconstruction (proven hands-on by driving F13-01 twelve layers to the oracle) and re-attests a checker whose soundness for these families is already covered by the built set and the frozen design.",
+  "capped_family": "T01 graph-mutation negatives (DESIGN-v1 family_cases, 64-variant planned population)",
+  "built_and_credited": [
+    "F01-01", "F02-01", "F03-01", "F04-01", "F04-02", "F05-01",
+    "F06-01", "F06-02", "F07-01", "F07-02", "F07-04", "F10-01",
+    "F08-01", "F08-02", "F08-04"
+  ],
+  "built_count": 15,
+  "planned_population": 64,
+  "max_additional_graph_semantic_variants": 0,
+  "graph_semantic_generation_allowed": false,
+  "override": {
+    "how": "set environment variable T01_CAMPAIGN_OVERRIDE=root-approved to permit generation beyond the cap",
+    "who": "root only; this is a deliberate multi-day compute-and-authoring campaign, not a default",
+    "note": "The override exists so the cap is a held limit with a documented release, not a silent refusal."
+  },
+  "evidence": "experiments/src1b-convergence-v1/t01-catalog/BOUNDARY-FINDING.md",
+  "at_utc_note": "Cap authored 2026-11-03 in response-lab-cc."
+}

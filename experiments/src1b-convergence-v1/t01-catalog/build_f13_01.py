@@ -41,6 +41,15 @@ def dump(obj):
 
 
 def main():
+    # Enforced recommendation-5 cap: refuse graph-semantic generation beyond the
+    # capped built set unless root overrides. The cap is a held limit, not a note.
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from cap_guard import require_generation_allowed, CapExceeded
+    try:
+        require_generation_allowed(CASE, kind="graph-semantic")
+    except CapExceeded as _e:
+        print(json.dumps({"refused": True, "reason": str(_e)})); raise SystemExit(3)
     DELTA.mkdir(parents=True, exist_ok=True)
     inv = json.loads((F10 / "invocation.json").read_bytes())
     mp = json.loads((F10 / "mapping.json").read_bytes())
