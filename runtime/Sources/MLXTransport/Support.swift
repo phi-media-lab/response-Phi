@@ -94,10 +94,21 @@ final class TransportPromise<T: Sendable>: Sendable {
     func reserve() -> Bool { state.withLock { s in
         guard !s.claimed else { return false }; s.claimed = true; return true
     } }
-    func publishReserved(_ result: Result<T, TransportFault>) {
+    /// Publishing an unreserved promise, or publishing twice, is a transport
+    /// protocol violation. It is recorded on the observation (when present) and
+    /// refused; the caller decides how to fail. No trap: a crash would discard
+    /// the retained worker/KV roots together with the evidence.
+    @discardableResult func publishReserved(_ result: Result<T, TransportFault>) -> Bool {
+        let violation: String? = state.withLock { s in
+            if !s.claimed { return "publish without reservation" }
+            if case .some = s.result { return "reserved promise published twice" }
+            return nil
+        }
+        if let violation {
+            observation?.record("publish.violation", wait: "-", domain: "unknown", result: violation)
+            return false
+        }
         let cs = state.withLock { s in
-            precondition(s.claimed)
-            guard case .none = s.result else { preconditionFailure("reserved promise published twice") }
             s.result = result; let cs = s.continuations; s.continuations.removeAll(); return cs
         }
         let domain = withUnsafeCurrentTask { $0 == nil ? "non_task" : "swift_task" }
@@ -111,6 +122,7 @@ final class TransportPromise<T: Sendable>: Sendable {
             }
             observation?.record("resume.post", wait: waiting.observationID, domain: domain, result: label)
         }
+        return true
     }
     @discardableResult func resolve(_ result: Result<T, TransportFault>, beforeResume: (@Sendable () -> Void)? = nil) -> Bool {
         guard reserve() else { return false }

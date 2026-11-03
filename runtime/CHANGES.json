@@ -1,0 +1,22 @@
+{
+ "changes": [
+  {
+   "schema": "runtime-change-v1",
+   "at_utc": "2026-11-03T04:24:11.991665+00:00",
+   "change": "integrate accepted composition-scope oracle correction into Sources/CM2CLI/ParentCompositionControls.swift",
+   "before_sha256": "cefe9f4c04c7115089eff3590eef2d3984383039ee82c824d5d35ce747f1a95d",
+   "after_sha256": "ee6ea824e9da293635f6f16d63d6bdf52b661ea5c53e4baef62f5169e1fc0880",
+   "source_diff": {
+    "path": "/Users/fbsh/response-lab/experiments/source-response-parent-host-close-v1/review/composition-scope-oracle-correction-v1/exact.diff",
+    "bytes": 3941,
+    "sha256": "dca02ce8f9d2b13aa1f8bd4ea11a00a74acb60360134f862eec85ed1cfdd2e2c"
+   },
+   "acceptance": {
+    "path": "/Users/fbsh/response-lab/results/source-response-parent-host-close-src1b/composition-scope-oracle-root-source-acceptance-v1.json",
+    "sha256": "dd766961f6e1ba9ffe717cd84d28efb716562815b249c793bc95af4ef94babfd",
+    "main_runtime_integrated_before": false
+   },
+   "reason": "the ten B-C CPU cases are to be executed for the first time; the corrected oracle ties HostClose/finalize/publication to the original parent scope and caller"
+  }
+ ]
+}

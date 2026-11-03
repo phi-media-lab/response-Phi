@@ -59,6 +59,12 @@ final class StartAbortGate:@unchecked Sendable {
     }
 }
 
+/// Thrown out of the synchronous admission closure when a prepared (gated, not
+/// yet committed) registration fails its commit validation. The async caller
+/// performs the actual abort+join; nothing is marked before that join.
+struct PreparedRegistrationFailure:Error,Sendable {
+    let registration:String;let underlying:any Error
+}
 struct PreparedProducerEnvelope:Sendable {
     let environment:Environment;let arguments:PrefillArguments;let site:String
 }

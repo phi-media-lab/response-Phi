@@ -96,7 +96,7 @@ private final class SRCShutdownGate: HostRetainedRoot, Sendable {
     private struct State {
         var entered = false, open = false, exited = false
         var delegated = false, delegateCompleted = false
-        var waiter: CheckedContinuation<Void, Never>?
+        var waiters: [CheckedContinuation<Void, Never>] = []
         var events: [JSONValue] = []
         var closedEvidence: JSONValue = .null
     }
@@ -118,19 +118,19 @@ private final class SRCShutdownGate: HostRetainedRoot, Sendable {
         await withCheckedContinuation { continuation in
             let immediate = state.withLock { s in
                 if s.open { return true }
-                precondition(s.waiter == nil); s.waiter = continuation
+                s.waiters.append(continuation)
                 append("shutdown.gate.registered", &s); return false
             }
             if immediate { continuation.resume() }
         }
     }
     func release() {
-        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
-            guard !s.open else { return nil }
+        let waiters = state.withLock { s -> [CheckedContinuation<Void, Never>] in
+            guard !s.open else { return [] }
             s.open = true; append("shutdown.gate.open", &s)
-            let saved = s.waiter; s.waiter = nil; return saved
+            let saved = s.waiters; s.waiters.removeAll(); return saved
         }
-        waiter?.resume()
+        for waiter in waiters { waiter.resume() }
     }
     func delegated() { state.withLock { s in s.delegated = true; append("shutdown.delegate.begin", &s) } }
     func completed(_ evidence: MLXClosedEvidence) {
@@ -141,7 +141,7 @@ private final class SRCShutdownGate: HostRetainedRoot, Sendable {
     func snapshot() -> JSONValue {
         state.withLock { s in .object(["kind": .string("native-production-shutdown-gate"),
             "holds_close": .bool(holds), "injected_before_delegate": .bool(throwsBeforeDelegate),
-            "entered": .bool(s.entered), "open": .bool(s.open), "waiter_registered": .bool(s.waiter != nil),
+            "entered": .bool(s.entered), "open": .bool(s.open), "waiter_registered": .bool(!s.waiters.isEmpty),
             "exited": .bool(s.exited), "delegated": .bool(s.delegated), "delegate_completed": .bool(s.delegateCompleted),
             "closed_evidence": s.closedEvidence, "events": .array(s.events), "clock": .string("swift-dispatch-uptime-ns")]) }
     }
@@ -152,7 +152,7 @@ private final class SRCShutdownGate: HostRetainedRoot, Sendable {
 private final class SRCReleaseGate: HostRetainedRoot, Sendable {
     private struct State {
         var entered = false, open = false, delegated = false, exited = false
-        var waiter: CheckedContinuation<Void, Never>?
+        var waiters: [CheckedContinuation<Void, Never>] = []
         var request: JSONValue = .null, ack: JSONValue = .null
         var events: [JSONValue] = []
     }
@@ -175,19 +175,19 @@ private final class SRCReleaseGate: HostRetainedRoot, Sendable {
         await withCheckedContinuation { continuation in
             let immediate = state.withLock { s in
                 if s.open { return true }
-                precondition(s.waiter == nil); s.waiter = continuation
+                s.waiters.append(continuation)
                 append("release.gate.registered", &s); return false
             }
             if immediate { continuation.resume() }
         }
     }
     func release() {
-        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
-            guard !s.open else { return nil }
+        let waiters = state.withLock { s -> [CheckedContinuation<Void, Never>] in
+            guard !s.open else { return [] }
             s.open = true; append("release.gate.open", &s)
-            let saved = s.waiter; s.waiter = nil; return saved
+            let saved = s.waiters; s.waiters.removeAll(); return saved
         }
-        waiter?.resume()
+        for waiter in waiters { waiter.resume() }
     }
     func delegated() { state.withLock { s in s.delegated = true; append("release.delegate.begin", &s) } }
     func completed(_ ack: MLXReturnACK) { state.withLock { s in s.ack = ack.json; append("release.delegate.return", &s) } }
@@ -195,7 +195,7 @@ private final class SRCReleaseGate: HostRetainedRoot, Sendable {
     func snapshot() -> JSONValue {
         state.withLock { s in .object(["kind": .string("native-original-B-release-gate"), "enabled": .bool(enabled),
             "entered": .bool(s.entered), "open": .bool(s.open), "delegated": .bool(s.delegated), "exited": .bool(s.exited),
-            "waiter_registered": .bool(s.waiter != nil), "request": s.request, "ack": s.ack,
+            "waiter_registered": .bool(!s.waiters.isEmpty), "request": s.request, "ack": s.ack,
             "events": .array(s.events), "clock": .string("swift-dispatch-uptime-ns")]) }
     }
 }

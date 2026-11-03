@@ -542,9 +542,9 @@ final class TransportSession: Sendable {
             }
         }
         if hello { trace.record("worker_hello", ["kind": .string("worker_hello"), "worker_id": .string(id), "created_pid": .n(state.withLock { $0.pid }), "scenario": .string(scenario), "hello": value]) }
-        if ready { readyPromise.publishReserved(.success(value)) }
-        if cpuEnter { cpuEntered.publishReserved(.success(value)) }
-        if cpuACK { cpuContinued.publishReserved(.success(value)) }
+        if ready, !readyPromise.publishReserved(.success(value)) { fail(TransportFault("promise_protocol", "READY promise refused publication")) }
+        if cpuEnter, !cpuEntered.publishReserved(.success(value)) { fail(TransportFault("promise_protocol", "CPU enter promise refused publication")) }
+        if cpuACK, !cpuContinued.publishReserved(.success(value)) { fail(TransportFault("promise_protocol", "CPU continue promise refused publication")) }
         if let ackStamp {
             service.record("ack.reserved", domain: "dispatch", stamp: ackStamp,
                 origin: brsWireOrigin(value), key: brsWireKey(value),
@@ -555,7 +555,7 @@ final class TransportSession: Sendable {
                 service.record("reply.publish", domain: "dispatch", origin: brsWireOrigin(value), key: brsWireKey(value),
                     details: .object(["queue": .string("cm1.worker-stdout")]))
             }
-            result.0.publishReserved(.success(result.1))
+            if !result.0.publishReserved(.success(result.1)) { fail(TransportFault("promise_protocol", "reply promise refused publication")) }
         }
     }
     // BRC1 historical payload entry only; deliberately does not call consume,

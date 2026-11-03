@@ -74,7 +74,7 @@ package enum ParentEntrypoint {
                 evidence.put("deadline_fault", errorDiagnostic(failure))
                 // Publish promptly. Cleanup cannot postpone the primary timeout
                 // report; retained original work may still complete afterwards.
-                cell.publish(.deadline(failure))
+                if !cell.publish(.deadline(failure)) { evidence.put("deadline_publish_violation", .string("completion cell refused deadline publication")) }
             }
             roots.installTimer(timer)
             gate.open()

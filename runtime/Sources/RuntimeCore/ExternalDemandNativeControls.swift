@@ -7,22 +7,22 @@ import Darwin
 // pool, publication and receipt identities below are explicitly synthetic. No
 // checked source, Ledger, real worker, GPU or model is executed by this file.
 fileprivate final class EBDNativeGate: Sendable {
-    private struct State { var open = false; var waiter: CheckedContinuation<Void, Never>? }
+    private struct State { var open = false; var waiters: [CheckedContinuation<Void, Never>] = [] }
     private let state = Mutex(State())
     func wait() async {
         await withCheckedContinuation { continuation in
             let ready = state.withLock { s -> Bool in
                 if s.open { return true }
-                precondition(s.waiter == nil); s.waiter = continuation; return false
+                s.waiters.append(continuation); return false
             }
             if ready { continuation.resume() }
         }
     }
     func open() {
-        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
-            s.open = true; let found = s.waiter; s.waiter = nil; return found
+        let waiters = state.withLock { s -> [CheckedContinuation<Void, Never>] in
+            s.open = true; let found = s.waiters; s.waiters.removeAll(); return found
         }
-        waiter?.resume()
+        for waiter in waiters { waiter.resume() }
     }
 }
 

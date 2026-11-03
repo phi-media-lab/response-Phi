@@ -95,11 +95,12 @@ package enum CM2Entrypoint {
                 transport.abortReturnServiceControls(reason: "host-deadline")
                 evidence.put("deadline_fault", transport.fault(failure))
                 if let cpuFrontends { evidence.put("frontend_deadline_close", await cpuFrontends.stopAndJoin()) }
-                cell.publish(.deadline(failure))
+                if !cell.publish(.deadline(failure)) { evidence.put("deadline_publish_violation", .string("completion cell refused deadline publication")) }
             }
             transport.externalDemand?.prepare()
             gate.open()
             let completion = await cell.wait()
+            if !cell.protocolViolations.isEmpty { evidence.put("completion_cell_violations", .array(cell.protocolViolations.map(JSONValue.string))) }
             let result: HostWorkResult
             switch completion {
             case .work(let outcome):

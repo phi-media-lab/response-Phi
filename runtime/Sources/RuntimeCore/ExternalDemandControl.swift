@@ -179,7 +179,12 @@ package final class ExternalDemandControl: Sendable {
                 s.started = true; record(&s, "requester.started")
                 if s.seal != nil { record(&s, "requester.trigger.cached", reason: "abort"); return false }
                 if s.opportunity { record(&s, "requester.trigger.cached", reason: "producer-edge"); return true }
-                precondition(s.gateWaiter == nil)
+                guard s.gateWaiter == nil else {
+                    // A second trigger wait is a protocol violation; record it and
+                    // treat this wait as aborted instead of trapping the process.
+                    if s.issues.count < 32 { s.issues.append("duplicate trigger wait") }
+                    record(&s, "control.invalid", reason: "duplicate trigger wait"); return false
+                }
                 s.gateWaiter = continuation; record(&s, "requester.trigger.registered"); return nil
             }
             if let ready { continuation.resume(returning: ready) }
@@ -207,7 +212,11 @@ package final class ExternalDemandControl: Sendable {
             let value = state.withLock { s -> ReplyResult? in
                 if let token = s.reply { record(&s, "requester.result.cached", token: token); return .success(token) }
                 if let failure = s.seal { record(&s, "requester.result.cached", reason: "abort"); return .failure(failure) }
-                precondition(s.resultWaiter == nil)
+                guard s.resultWaiter == nil else {
+                    if s.issues.count < 32 { s.issues.append("duplicate result wait") }
+                    record(&s, "control.invalid", reason: "duplicate result wait")
+                    return .failure(ExternalDemandFailure(reason: "duplicate result wait"))
+                }
                 s.resultWaiter = continuation; record(&s, "requester.result.registered"); return nil
             }
             if let value { continuation.resume(returning: value) }
@@ -516,7 +525,7 @@ package final class ExternalDemandControl: Sendable {
                 "reply_publication": s.replyPublication.map(JSONValue.string) ?? .null, "delivered": delivered,
                 "raise_calls": .integer(s.raises), "issues": .array(s.issues.map(JSONValue.string)),
                 "events": .array(s.rows.enumerated().map { index, row in
-                    var fields = try! row.json.members(); fields["append_seq"] = .integer(index + 1)
+                    var fields = (try? row.json.members()) ?? ["raw": row.json]; fields["append_seq"] = .integer(index + 1)
                     return .object(fields)
                 })])
         }

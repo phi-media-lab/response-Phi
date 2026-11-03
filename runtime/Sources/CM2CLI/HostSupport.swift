@@ -169,29 +169,37 @@ enum HostCompletion: Sendable {
 final class HostResultCell: Sendable {
     private struct State {
         var claimed = false; var result: HostCompletion?
-        var waiter: CheckedContinuation<HostCompletion, Never>?
+        var waiters: [CheckedContinuation<HostCompletion, Never>] = []
+        var violations: [String] = []
     }
     private let state = Mutex(State())
     func reserve() -> Bool {
         state.withLock { s in if s.claimed { return false }; s.claimed = true; return true }
     }
-    func publish(_ value: HostCompletion) {
-        let waiter = state.withLock { s -> CheckedContinuation<HostCompletion, Never>? in
-            precondition(s.claimed && s.result == nil)
-            s.result = value; let found = s.waiter; s.waiter = nil; return found
+    /// A publication without reservation, or after a result, is a host protocol
+    /// violation. It is recorded as evidence and refused; it never traps the
+    /// process, because a crash would also discard the retained roots.
+    @discardableResult func publish(_ value: HostCompletion) -> Bool {
+        let (accepted, waiters) = state.withLock { s -> (Bool, [CheckedContinuation<HostCompletion, Never>]) in
+            guard s.claimed && s.result == nil else {
+                s.violations.append(s.claimed ? "publish after result" : "publish without reservation"); return (false, [])
+            }
+            s.result = value; let found = s.waiters; s.waiters.removeAll(); return (true, found)
         }
-        waiter?.resume(returning: value)
+        for waiter in waiters { waiter.resume(returning: value) }
+        return accepted
     }
     func resolve(_ value: HostCompletion) { if reserve() { publish(value) } }
     func wait() async -> HostCompletion {
         await withCheckedContinuation { continuation in
             let value = state.withLock { s -> HostCompletion? in
                 if let result = s.result { return result }
-                precondition(s.waiter == nil); s.waiter = continuation; return nil
+                s.waiters.append(continuation); return nil
             }
             if let value { continuation.resume(returning: value) }
         }
     }
+    var protocolViolations: [String] { state.withLock { $0.violations } }
 }
 
 /// Diagnostic snapshots never replace the actual saved Task handles.

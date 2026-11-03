@@ -70,7 +70,7 @@ private final class JRDShutdownGate: HostRetainedRoot, Sendable {
     private struct State {
         var entered = false, open = false, exited = false
         var delegated = false, delegateCompleted = false
-        var waiter: CheckedContinuation<Void, Never>?
+        var waiters: [CheckedContinuation<Void, Never>] = []
         var events: [JSONValue] = []
         var closedEvidence: JSONValue = .null
     }
@@ -92,19 +92,19 @@ private final class JRDShutdownGate: HostRetainedRoot, Sendable {
         await withCheckedContinuation { continuation in
             let immediate = state.withLock { s in
                 if s.open { return true }
-                precondition(s.waiter == nil); s.waiter = continuation
+                s.waiters.append(continuation)
                 append("shutdown.gate.registered", &s); return false
             }
             if immediate { continuation.resume() }
         }
     }
     func release() {
-        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
-            guard !s.open else { return nil }
+        let waiters = state.withLock { s -> [CheckedContinuation<Void, Never>] in
+            guard !s.open else { return [] }
             s.open = true; append("shutdown.gate.open", &s)
-            let saved = s.waiter; s.waiter = nil; return saved
+            let saved = s.waiters; s.waiters.removeAll(); return saved
         }
-        waiter?.resume()
+        for waiter in waiters { waiter.resume() }
     }
     func delegated() { state.withLock { s in s.delegated = true; append("shutdown.delegate.begin", &s) } }
     func completed(_ evidence: MLXClosedEvidence) {
@@ -115,7 +115,7 @@ private final class JRDShutdownGate: HostRetainedRoot, Sendable {
     func snapshot() -> JSONValue {
         state.withLock { s in .object(["kind": .string("native-production-shutdown-gate"),
             "holds_close": .bool(holds), "injected_before_delegate": .bool(throwsBeforeDelegate),
-            "entered": .bool(s.entered), "open": .bool(s.open), "waiter_registered": .bool(s.waiter != nil),
+            "entered": .bool(s.entered), "open": .bool(s.open), "waiter_registered": .bool(!s.waiters.isEmpty),
             "exited": .bool(s.exited), "delegated": .bool(s.delegated), "delegate_completed": .bool(s.delegateCompleted),
             "closed_evidence": s.closedEvidence, "events": .array(s.events), "clock": .string("swift-dispatch-uptime-ns")]) }
     }

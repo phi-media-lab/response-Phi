@@ -290,7 +290,7 @@ actor Ledger {
                     "receive":.string(input.id),"receive_site":.string(input.site),"tokens":.array(arguments.tokens.map(JSONValue.unsigned))]))
             }
         }
-        return try backend.withHealthyAdmission {
+        do { return try backend.withHealthyAdmission {
             scopes[h.id]!.prefillClaimed=true
             emit("prefill.claimed",site:site,caller:parent,scope:h,details:.object(["operation":.string(arguments.operation),"tokens":.array(arguments.tokens.map(JSONValue.unsigned))]))
             try runtimeRequire(owners[owner]?.epoch == epoch,"registration epoch mismatch")
@@ -329,19 +329,24 @@ actor Ledger {
                  details:.object(["registration":.string(reg),"task":.string(t)]))
             // All throwing commit guards are before the first source-record write.
             // No catch wraps this commit or translates postcommit failure to rollback.
-            do {try validateRegistrationCommit(reg)} catch {
-                // Unexpected prepare/commit protocol failure conservatively keeps
-                // the still-closed real Task/envelope. Never pretend it rolled back.
-                registrations[reg]!.phase="unresolved";obligations["Registration:"+reg]="Unresolved"
-                emit("registration.unresolved",site:site,caller:parent,scope:h,
-                     details:.object(["registration":.string(reg),"message":.string(String(describing:error))]))
-                throw error
+            // Every throwing guard, including the fixture policy selection, runs
+            // before commit. A failure here must not leave the still-closed real
+            // Task behind its gate: the synchronous admission closure cannot
+            // await, so launchProducer below performs the actual abort+join.
+            let policySelected:Bool
+            do {try validateRegistrationCommit(reg);policySelected=try producerPolicySelected(site:site)} catch {
+                throw PreparedRegistrationFailure(registration:reg,underlying:error)
             }
             let context=commitPreparedRegistration(reg)
-            try bindProducerPolicy(context,site:site)
+            bindProducerPolicy(context,site:site,selected:policySelected)
             let launch=ProducerLaunch(machine:sourceRoots[context.kernelCaller.job]!,context:context,arguments:arguments,site:site)
             try gate.resolve(.start(launch))
             return context
+        } } catch let failure as PreparedRegistrationFailure {
+            // Actual rollback: resolve the gate with .abort, await the very Task
+            // placed in Tx, mark the registration Safe, then rethrow the commit error.
+            _=try await abortPreparedRegistration(failure.registration,underlying:failure.underlying)
+            throw failure.underlying
         }
     }
     private func validateRegistrationCommit(_ reg:String)throws {
@@ -404,6 +409,7 @@ actor Ledger {
             let sharedType=try program.annotation(site).binder("generated",0).type
             let resultType=try program.table.field(program.table.field(sharedType,"fields"),"payload"),latentEffect=annotation.effect
             try runtimeRequire(resultType != .null && latentEffect != .null,"ordinary body lacks complete type/effect")
+            let ordinarySelected=try ordinaryPolicySelected(site:site,scope:h)
             let anchor:String
             if let current=parent.scopes.last,scopes[current]?.caller == parent {anchor="Scope:"+current}
             else {anchor="Job:"+parent.job}
@@ -451,7 +457,7 @@ actor Ledger {
             obligations["Registration:"+reg]="Safe";roots.subtract(["Registration:"+reg,"PreparedTask:"+t,"PreparedEnvelope:"+reg])
             emit("registration.commit",site:site,caller:parent,scope:h,details:.object(["kind":.string("ordinary"),"registration":.string(reg),"job":.string(p),"task":.string(t),"caller":caller.json,"result_type":resultType,"latent_effect":latentEffect]))
             emit("frame.push",site:site,caller:caller,details:finish.json)
-            try bindOrdinaryPolicy(context)
+            bindOrdinaryPolicy(context,selected:ordinarySelected)
             try gate.resolve(.ordinary(OrdinaryLaunch(machine:machine,context:context)))
             return context
         }
@@ -518,24 +524,34 @@ actor Ledger {
         guard let node=program.nodes[site] else {throw RuntimeInvariant("native policy missing checked site")}
         return try node.field("result_name").text()
     }
-    private func bindProducerPolicy(_ context:ProducerContext,site:String)throws {
+    /// Throwing half of the fixture policy binding; runs before commit so that
+    /// no throw can follow a committed registration whose Task is not yet started.
+    private func producerPolicySelected(site:String)throws->Bool {
         let name=try generatedName(site)
         let selected = deterministic?.producerSite == site || (forkPolicy == .ownedCoexist && name == "AH")
+        if selected {try runtimeRequire(policyProducer == nil,"native producer identity rebound")}
+        return selected
+    }
+    private func bindProducerPolicy(_ context:ProducerContext,site:String,selected:Bool) {
         if selected {
-            try runtimeRequire(policyProducer == nil,"native producer identity rebound")
             policyProducer=context.kernelCaller.job
             emit("native.producer-bound",site:site,caller:context.kernelCaller,scope:context.scope,details:policyDescription)
         }
     }
-    private func bindOrdinaryPolicy(_ context:OrdinaryContext)throws {
-        let name=try generatedName(context.site)
-        let selected = deterministic?.forkSite == context.site ||
+    private func ordinaryPolicySelected(site:String,scope:ScopeHandle)throws->Bool {
+        let name=try generatedName(site)
+        let selected = deterministic?.forkSite == site ||
             ((forkPolicy == .earlyCancel || forkPolicy == .closedTarget) && name == "WH")
         if selected {
             try runtimeRequire(policyWaiter == nil,"native waiter identity rebound")
             if let deterministic {
-                try runtimeRequire(context.scope.owner == nil && scopes[context.scope.id]?.creationSite == deterministic.scopeSite,"D waiter registered in foreign scope activation")
+                try runtimeRequire(scope.owner == nil && scopes[scope.id]?.creationSite == deterministic.scopeSite,"D waiter registered in foreign scope activation")
             }
+        }
+        return selected
+    }
+    private func bindOrdinaryPolicy(_ context:OrdinaryContext,selected:Bool) {
+        if selected {
             policyWaiter=context.caller.job;policyWaiterScope=context.scope.id
             emit("native.waiter-bound",site:context.site,caller:context.caller,scope:context.scope,details:policyDescription)
         }
@@ -609,11 +625,12 @@ actor Ledger {
         emit("registration.abort_entered",site:tx.site,scope:tx.target,
              details:.object(["registration":.string(reg),"task":.string(task),"source_code_entered":.bool(false)]))
     }
-    private func abortPreparedRegistration(_ reg:String,failure:SourceFailure)async throws->ProducerContext {
+    private func abortPreparedRegistration(_ reg:String,underlying:any Error)async throws->ProducerContext {
         guard let tx=registrations[reg],tx.phase == "prepared",let task=tx.task,let gate=tx.gate else {
             throw RuntimeInvariant("rollback outside prepared phase")
         }
-        registrations[reg]!.faultIDs=failure.ids;registrations[reg]!.phase="aborting"
+        let faultIDs=(underlying as? SourceFailure)?.ids ?? []
+        registrations[reg]!.faultIDs=faultIDs;registrations[reg]!.phase="aborting"
         do {
             try gate.resolve(.abort(registration:reg,task:tx.taskID))
             emit("registration.abort_requested",site:tx.site,caller:tx.issuer,scope:tx.target,
@@ -635,14 +652,15 @@ actor Ledger {
             registrations[reg]!.envelope=nil;registrations[reg]!.gate=nil
             roots.subtract(["Registration:"+reg,"PreparedTask:"+tx.taskID,"PreparedEnvelope:"+reg])
             emit("registration.abort",site:tx.site,caller:tx.issuer,scope:tx.target,
-                 details:.object(["registration":.string(reg),"task":.string(tx.taskID),"fault_ids":.array(failure.ids.map(JSONValue.string))]))
+                 details:.object(["registration":.string(reg),"task":.string(tx.taskID),"fault_ids":.array(faultIDs.map(JSONValue.string)),
+                                  "message":.string(String(describing:underlying))]))
         } catch {
             registrations[reg]!.phase="unresolved";obligations["Registration:"+reg]="Unresolved"
             emit("registration.unresolved",site:tx.site,caller:tx.issuer,scope:tx.target,
                  details:.object(["registration":.string(reg),"message":.string(String(describing:error))]))
             throw error // no Safe/cleanup/GenBind return for uncertain rollback
         }
-        throw failure // original parent-invocation fault, only after actual join
+        throw underlying // original commit failure, only after actual join
     }
     private func validAccess(_ id:String,job:String,mode:String)throws {
         guard let a=accesses[id] else { throw RuntimeInvariant("unknown access") }
@@ -1425,9 +1443,21 @@ actor Ledger {
         returnService?.applyPolicy(worker:serviceWorker,scope:h,main:mainCaller,
             registeredMain:jobs[mainCaller.job]?.caller,mainRole:jobs[mainCaller.job]?.role,
             task:jobs[mainCaller.job]?.task,request:request)
-        try externalDemand?.applyFrontier(worker:serviceWorker,scope:h,main:mainCaller,
-            registeredMain:jobs[mainCaller.job]?.caller,mainRole:jobs[mainCaller.job]?.role,
-            task:jobs[mainCaller.job]?.task,request:request)
+        do {
+            try externalDemand?.applyFrontier(worker:serviceWorker,scope:h,main:mainCaller,
+                registeredMain:jobs[mainCaller.job]?.caller,mainRole:jobs[mainCaller.job]?.role,
+                task:jobs[mainCaller.job]?.task,request:request)
+        } catch {
+            // The frontier check failed before any RELEASE was sent, so the worker
+            // still holds the pages. That is undischargeable here: mark the
+            // obligation Unresolved (phase release-blocked, never "unknown") and the
+            // scope Unresolved instead of leaving beta Active and the scope Draining.
+            let failure=backendDiagnostic(error);backendFailure=failure
+            if obligations["BackendReturn:"+beta] == "Active" {obligations["BackendReturn:"+beta]="Unresolved";backendReturns[beta]!.phase="release-blocked";backendReturns[beta]!.failure=failure}
+            scopes[h.id]!.state="Unresolved"
+            emit("backend-return.unresolved",site:site,caller:scopes[h.id]!.caller,scope:h,details:backendReturns[beta]!.json)
+            throw error
+        }
         backendReturns[beta]!.phase="release-sent"
         emit("backend-return.release_requested",site:site,caller:scopes[h.id]!.caller,scope:h,details:request.json)
         do {

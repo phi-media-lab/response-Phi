@@ -130,6 +130,8 @@ private func pcCheckResult(_ f: ParentCPUFixture, parent: ExecutionReport, child
     let childTrial = try pcOne(child.field("trials").elements(), "child original trial")
     let childLedger = try childTrial.field("ledger"), childEvents = try childTrial.field("events").elements()
     let registry = try final.field("registry"), host = try registry.field("host_root"), response = try registry.field("response")
+    let invocation = try registry.field("invocation"), scopeID = try invocation.field("parent_scope").text()
+    let originalCaller = try invocation.field("parent_caller")
     try checks.equal("original child exit", try host.field("runtime").field("primary_exit_code"), .integer(f.childExit))
     try checks.equal("child primary preserved", try host.field("primary_report"), child)
     try checks.equal("parent primary preserved", try final.field("primary_report"), parent.json)
@@ -243,13 +245,23 @@ private func pcCheckResult(_ f: ParentCPUFixture, parent: ExecutionReport, child
     let lateLedger = try parentLate.field("late_ledger_observation")
     let mains = try lateLedger.field("J").members().values.filter { pcField($0, "role") == .string("main") }
     let main = try pcOne(Array(mains), "late original parent main")
+    for key in ["job", "task"] {
+        try checks.equal("service belongs to original parent main " + key, try originalCaller.field(key), try main.field("caller").field(key))
+    }
     if f.timesOut || f.closeFault || f.parentFault {
         try checks.equal("incomplete parent never gains a publication", try main.field("published"), .null)
         try checks.equal("no normal source scope finalization", .integer(pcEvents(events, "scope.finalize").count), .integer(0))
     } else {
         let closed = try pcOne(pcEvents(events, "service.host-close-safe"), "HostClose safe")
-        let finalized = try pcOne(pcEvents(events, "scope.finalize"), "parent scope finalize")
+        let finalized = try pcOne(pcEvents(events, "scope.finalize").filter { pcField($0, "scope") == .string(scopeID) }, "parent service scope finalize")
         let published = try pcOne(pcEvents(events, "result.published"), "parent publication")
+        try checks.equal("HostClose belongs to original service scope", try closed.field("scope"), .string(scopeID))
+        for (label, event) in [("HostClose", closed), ("service scope finalize", finalized), ("publication", published)] {
+            for key in ["job", "task"] {
+                try checks.equal(label + " belongs to original parent " + key, try event.field(key), try originalCaller.field(key))
+            }
+        }
+        try checks.equal("original service scope actually joined", try lateLedger.field("S").field(scopeID).field("state"), .string("Joined"))
         try checks.before("HostClose before parent scope exit", closed, finalized)
         try checks.before("parent scope exit before publication", finalized, published)
         if f.hasTool { try checks.before("actual tool return before scope discharges HostClose", try pcOne(pcEvents(events, "tool.original-return"), "original tool return"), closed) }
@@ -273,7 +285,8 @@ private func pcCheckResult(_ f: ParentCPUFixture, parent: ExecutionReport, child
                 throw hostFault("src1b-clock", "Core original uptime origin")
             }
             for eventName in ["scope.finalize", "result.published"] {
-                let event = try pcOne(pcEvents(events, eventName), "parent " + eventName)
+                let selected = pcEvents(events, eventName).filter { eventName != "scope.finalize" || pcField($0, "scope") == .string(scopeID) }
+                let event = try pcOne(selected, "parent service " + eventName)
                 guard let relative = UInt64(try event.field("t_ns").text()) else { throw hostFault("src1b-clock", "Core actual relative stamp") }
                 let stamp = origin.addingReportingOverflow(relative)
                 try checks.truth("parent " + eventName + " cannot precede actual close-gate release", !stamp.overflow && openNS <= stamp.partialValue)
