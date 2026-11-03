@@ -1,0 +1,290 @@
+[
+ {
+  "gap": 0,
+  "path": "legacy/results/batch5/capability-fixtures-REPORT.md",
+  "bytes": 9019,
+  "sha256": "bfea1571360b2e2a85103bf113c1eccbb937a2b0107f0a613f264d686f8c0419"
+ },
+ {
+  "gap": 0,
+  "path": "legacy/results/batch5/lifetime-fixtures-REPORT.md",
+  "bytes": 9736,
+  "sha256": "dd7ad776dde26e52d4a4617189c3619d2a5648ecd4537b36efbb49b6b851342e"
+ },
+ {
+  "gap": 0,
+  "path": "/Users/fbsh/swift/RESEARCH_DIRECTION.md",
+  "bytes": 18452,
+  "sha256": "02014aa4cbf593dd55b690c67ff0b69e733c419f52e915565c0124f4ab6c00d3"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-scope-alias/README.md",
+  "bytes": 3191,
+  "sha256": "5367b0b8319aa9d23b4e67df76d6ba158b3ce7462595e5a5c3373287d78eff06"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-scope-alias/verification/counterexample/stdout.json",
+  "bytes": 41392,
+  "sha256": "2807739439e5a9db9715e0d4cbfeedefa94057727ff0990e26536f7f2c831033"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-scope-alias/REPAIR_DESIGN.md",
+  "bytes": 3538,
+  "sha256": "9f6c4123f6d617a6d58649190da5b09f92642d4d1015c812588976c3b6323714"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/clients/consumer_cannot_cancel_producer.swift",
+  "bytes": 105,
+  "sha256": "595cfaac67382c4731397a71abd9cba89633f272edcf70dbdb43b86150ffe1ed"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/clients/cannot_construct_result.swift",
+  "bytes": 128,
+  "sha256": "d673a79d81b33d8ca158c9348734ef8ce856f7dca3d40d7dd9039e1a12a8fd7f"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/consumer_cannot_cancel_producer/compile/stderr",
+  "bytes": 417,
+  "sha256": "599d80ac061ca2f8d0d577bfe32d2666d81a5350d48a0500f9423ea144ab942c"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/cannot_construct_result/compile/stderr",
+  "bytes": 706,
+  "sha256": "2aaa413b860e5dc8da41c4dc3f296c502bae59d747d6a9557a4eababd86409c2"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/cannot_extract_owner/compile/stderr",
+  "bytes": 622,
+  "sha256": "92ffb5d7d3a86218bc89a6488abfa7bf8dccf7bea4a5c0304b8acd56c83bfd26"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-capability-fixtures/Module.swift",
+  "bytes": 1275,
+  "sha256": "b0225bd30cfb5f5e12e0c455578b450f2ddc874a27bf93a98e7f562adae7770d"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/docs/P4_COMPOSITION_PLAN.md",
+  "bytes": 32039,
+  "sha256": "3281398668eb6709d27149abb4ef33823f3a7ec215a721fb55111fff4cc38729"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/swift-resource-owner/README.md",
+  "bytes": 5441,
+  "sha256": "17a456f6a2ee9841cccb63db6d60098dd211585473904838db1103f69525128d"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/results/batch3/resource-owner/REPORT.md",
+  "bytes": 9886,
+  "sha256": "ef1b2a483a28fe8a5b856d6d4fb623a88e5695ab48f5e891d6fa10a47fa37abd"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/docs/P8_LANGUAGE_SUBSET_PROPOSAL.md",
+  "bytes": 22665,
+  "sha256": "2b3e55775d63fdb99d47754349b306da92b8b071acad8127c54cecc7b039f7ca"
+ },
+ {
+  "gap": 1,
+  "path": "legacy/experiments/source-response-parent-host-close-v1/runtime/Sources/RuntimeCore/Ledger.swift",
+  "bytes": 143154,
+  "sha256": "7ec30b1f724d483cf14eafa2a8cae08868fb39b617ca3bc1c3c89c45b3eb0494"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/clients/affine_drop_without_await.swift",
+  "bytes": 427,
+  "sha256": "ebd9fc32e5f82b6d63a9923f6d0a045c35069dcdd7bf2007d74005ff4347bbbb"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/affine_drop_without_await/execution/stdout",
+  "bytes": 5250,
+  "sha256": "619fda28375caffdaeee869aed9fdaaf81dd30fec8c9b54dd9bd72b2e30eaffb"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/affine_copy/compile/stderr",
+  "bytes": 425,
+  "sha256": "2bad1f6a52870b178464b982846ca5af0f8903ad379e81baddb70d935acc8a0a"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/affine_double_consume/compile/stderr",
+  "bytes": 502,
+  "sha256": "3cf62de26d503c6e92f857c91a839aa6b1cfb03db22ab1b16f6bb100361586f6"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/experiments/swift-obligation-scope/verification/compile-fixtures/report.json",
+  "bytes": 2423,
+  "sha256": "ea338c3d66b5e9af3664fb538ada58d5e6bd6cf2dc037ab3318b7b9499b9ea44"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/results/batch5/cancellable-wait-REPORT.md",
+  "bytes": 6157,
+  "sha256": "b17ec196707075ac89af4532e0dca4d5784743125e247876338e8677dc8a3f64"
+ },
+ {
+  "gap": 2,
+  "path": "legacy/results/batch5/owner-composition-REPORT.md",
+  "bytes": 7633,
+  "sha256": "4a94b210fb5aaf2bebcce88bf7fa068f51d5e5d909b87136ac65fede145f28d9"
+ },
+ {
+  "gap": 3,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/clients/escaped_dynamic_session.swift",
+  "bytes": 625,
+  "sha256": "aa84073cd2f3645eed232da41463f309001e041f39ec8e5b1ba81d0b875ee76e"
+ },
+ {
+  "gap": 3,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/escaped_dynamic_session/execution/stdout",
+  "bytes": 10807,
+  "sha256": "44d47c2f3aba3d805bdbff199d7a2cad05190fa2a2083d34c7e60384e802f109"
+ },
+ {
+  "gap": 3,
+  "path": "legacy/experiments/swift-lifetime-fixtures/clients/dynamic_escaped_lease.swift",
+  "bytes": 815,
+  "sha256": "3dfd7c33eeba5801b770a5e1019da4f1ac797551f7ddbdd1b939eb067f94801d"
+ },
+ {
+  "gap": 3,
+  "path": "legacy/experiments/swift-lifetime-fixtures/fixtures.json",
+  "bytes": 6888,
+  "sha256": "904f02f52b5c346f82da719696c45fd77530d146a57426d917cc0eb639030183"
+ },
+ {
+  "gap": 3,
+  "path": "legacy/experiments/swift-lifetime-fixtures/DynamicFacade.swift",
+  "bytes": 3303,
+  "sha256": "b9676da39bc37d521e3505f8dd4b390a5c25f49904e6ff535ee7904e88f1e669"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-lifetime-fixtures/LifetimeValues.swift",
+  "bytes": 2496,
+  "sha256": "99bb195316459a6b131f097e2278c641e0d634aa7b1593445ab05ea8db88874a"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-lifetime-fixtures/clients/value_detached_capture.swift",
+  "bytes": 151,
+  "sha256": "16321a15bf96a5f45d4b0c8d3d63bc8fed3bc7d2d4a5dbe1bca9c4b66a68702c"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/results/batch5/lifetime-support-probe-v2/library/stderr",
+  "bytes": 2689,
+  "sha256": "69c554488f6ab77709558f2019665a392ed0b06c8b36f6eed1b2bfbd0e20cd54"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/results/batch5/lifetime-support-probe-v5/library/stderr",
+  "bytes": 1773,
+  "sha256": "ef464008b3cb3043f1600cb7801ff014ba2404f31649b106fd2c93aad876e6d5"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/results/batch5/lifetime-support-probe-v6/report.json",
+  "bytes": 5222,
+  "sha256": "fb439e16ed50a35238abfbb37f0aefcd1f5f4812ed2261801c1512210d2c3bf5"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/results/batch5/lifetime-support-probe-v6/escape-compile/stderr",
+  "bytes": 521,
+  "sha256": "d2eaa6ec311c722373bae7b0fa0387ffcf40598827c2959f087e8d783697fcfa"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/results/batch5/lifetime-support-probe-v6/source/Views.swift",
+  "bytes": 615,
+  "sha256": "ea42a49f4944b4fe07b8397743aedacff243d4ccfd6580c87743581883d88d46"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/results/batch5/lifetime-support-REPORT.md",
+  "bytes": 5083,
+  "sha256": "ef88dd9d28d6082491b12635e06af10ee810d12cbb5c7e37c32e3fd944808348"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-lifetime-fixtures/attempts/attempt-2/report.json",
+  "bytes": 119068,
+  "sha256": "f4981fd86308470084116396295a7657015de41dd3018d2fd8320303d0482466"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-lifetime-fixtures/verification/attempt-2-diagnostics.json",
+  "bytes": 11214,
+  "sha256": "4a07060c36181356d49ae2c75811a220404982398cd83549ab1d72d002f2c7b5"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-lifetime-fixtures/attempts/attempt-2/fixtures/value_detached_capture/compile/stderr",
+  "bytes": 594,
+  "sha256": "5f6f4b2da0e87756e63e9e3de376e500c5d8ad9ba30e7a919f41f62796a5861d"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/clients/borrow_capture_in_detached_task.swift",
+  "bytes": 139,
+  "sha256": "ce5e59c27c6f32df373fe38337d14a2fefbbfbf7ec17c012dbc064d128cacfb7"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/experiments/swift-capability-fixtures/attempts/attempt-1/fixtures/borrow_capture_in_detached_task/compile/stderr",
+  "bytes": 542,
+  "sha256": "bccb58c5b295762d05911d4e70a6278161c1c9bf3f58c667c7e28a61b74c2a1b"
+ },
+ {
+  "gap": 4,
+  "path": "legacy/docs/P4_LIFETIME_CANDIDATE_PLAN.md",
+  "bytes": 8000,
+  "sha256": "ae30fbaad4d9bd0c6cb4dc52e2441bc6fa39a7f066fec6e492728fa3f593e8dd"
+ },
+ {
+  "gap": 5,
+  "path": "legacy/experiments/swift-lifetime-fixtures/clients/value_store_in_array.swift",
+  "bytes": 134,
+  "sha256": "f29f393c965c448c55627c355bd8aa58412bb5a8e0f07c97b63a005e100f4996"
+ },
+ {
+  "gap": 5,
+  "path": "legacy/experiments/swift-lifetime-fixtures/probes/array-explicit-1/source/ExplicitArray.swift",
+  "bytes": 157,
+  "sha256": "f2aa9c041ff5cd6fb7731ca505ae21bd6a297d487c029b71d975469a54e2fdb4"
+ },
+ {
+  "gap": 5,
+  "path": "legacy/experiments/swift-lifetime-fixtures/probes/array-explicit-1/stderr",
+  "bytes": 431,
+  "sha256": "6ba72c2188470980154fcea4559f2a15b33a97faad0ae5c3d5695803efbf9b46"
+ },
+ {
+  "gap": 5,
+  "path": "legacy/experiments/swift-lifetime-fixtures/probes/array-explicit-1/compile.json",
+  "bytes": 1137,
+  "sha256": "9a5fa6d6104690e59ab477d0e5be6530ed3b829411ce688c6507a33a262ed9dd"
+ },
+ {
+  "gap": 5,
+  "path": "legacy/experiments/swift-lifetime-fixtures/README.md",
+  "bytes": 7516,
+  "sha256": "f0c0b2412b464f5f1287bc77b851a857e8ee7d33a07bd7657884049e062357c1"
+ }
+]

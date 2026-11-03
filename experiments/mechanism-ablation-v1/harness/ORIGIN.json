@@ -1,0 +1,20 @@
+{
+ "schema": "ma1-harness-origin-v1",
+ "at_utc": "2026-11-03T04:15:19.201154+00:00",
+ "run_level_py": {
+  "derived_from": "/Users/fbsh/response-lab-cc/runtime/backend/run_session.py",
+  "source_sha256": "49a58dea55507e2c322783d6cbedcfc8fff7e884b65a7c798d1b434a5475de7b",
+  "changes": [
+   "generic --swift-arg passthrough",
+   "--level/--label recorded",
+   "no product-name/CM2-only option checks",
+   "schema ma1-session-*"
+  ]
+ },
+ "inputs_json": {
+  "copied_from": "/Users/fbsh/response-lab/results/core-language-runtime-mlx-fork-cm2/preparation/inputs.json",
+  "bytes": 227581,
+  "sha256": "07384b8e85554f79f80f1bc4ad7fec4b1febb4e06d2fa4cdc5e8b280f8372250",
+  "note": "CM2 frozen cm1-inputs-v1 manifest; external_inputs pins verified by the worker at load"
+ }
+}

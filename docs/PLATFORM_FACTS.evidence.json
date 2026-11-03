@@ -1,0 +1,212 @@
+[
+ {
+  "fact": "F1",
+  "path": "legacy/results/PILOT_REPORT.md",
+  "bytes": 8020,
+  "sha256": "1ede75cf53b65d424277cbabc8b1a6e78352896a9ffecee5cc13f294a2c62bb3"
+ },
+ {
+  "fact": "F1",
+  "path": "legacy/experiments/tiny-cancel/run.py",
+  "bytes": 21599,
+  "sha256": "48d7ed07a97e187b89297b4d9c825fb9365e8eb34553552ea10929b1b1bef442"
+ },
+ {
+  "fact": "F1",
+  "path": "legacy/experiments/source-response-parent-host-close-v1/runtime/backend/worker.py",
+  "bytes": 28373,
+  "sha256": "8422cb5f67f9d5d70d291a629d02b77a03502e3c8c6b6bf7ea15ad5e4af6b6a4"
+ },
+ {
+  "fact": "F1",
+  "path": "legacy/experiments/swift-mlx-wait-owner-v1/PLAN.md",
+  "bytes": 9462,
+  "sha256": "4697462b6fb9d8ef83d874388ecca776bb47cdf6dbdbd346b3b0cb1a41c7efe0"
+ },
+ {
+  "fact": "F2",
+  "path": "legacy/experiments/tiny-cancel/run.py",
+  "bytes": 21599,
+  "sha256": "48d7ed07a97e187b89297b4d9c825fb9365e8eb34553552ea10929b1b1bef442"
+ },
+ {
+  "fact": "F2",
+  "path": "legacy/experiments/swift-mlx-wait-owner-v1/PLAN.md",
+  "bytes": 9462,
+  "sha256": "4697462b6fb9d8ef83d874388ecca776bb47cdf6dbdbd346b3b0cb1a41c7efe0"
+ },
+ {
+  "fact": "F2",
+  "path": "legacy/results/core-language-runtime-mlx-cm1/REPORT.md",
+  "bytes": 7156,
+  "sha256": "06c6cdf35780541be843252855e5301b2d5587fb739f37fc60a18ff16786d06f"
+ },
+ {
+  "fact": "F2",
+  "path": "legacy/results/core-language-runtime-mlx-fork-cm2/REPORT.md",
+  "bytes": 10146,
+  "sha256": "861807886dfc63e60cc93f934751114ef05121f7346629ad309b3a558d29c92b"
+ },
+ {
+  "fact": "F2",
+  "path": "legacy/experiments/metal-handoff/Sources/MetalHandoff/MetalHandoff.swift",
+  "bytes": 34132,
+  "sha256": "111253b6322857973264909f2e139cc9a69dc3b5c9e3ba7d129ea4059f138309"
+ },
+ {
+  "fact": "F2",
+  "path": "legacy/results/PILOT_REPORT.md",
+  "bytes": 8020,
+  "sha256": "1ede75cf53b65d424277cbabc8b1a6e78352896a9ffecee5cc13f294a2c62bb3"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/experiments/source-response-parent-host-close-v1/runtime/Sources/RuntimeCore/Ledger.swift",
+  "bytes": 143154,
+  "sha256": "7ec30b1f724d483cf14eafa2a8cae08868fb39b617ca3bc1c3c89c45b3eb0494"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/results/core-language-runtime-mlx-cm1/REPORT.md",
+  "bytes": 7156,
+  "sha256": "06c6cdf35780541be843252855e5301b2d5587fb739f37fc60a18ff16786d06f"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/results/core-language-runtime-mlx-fork-cm2/REPORT.md",
+  "bytes": 10146,
+  "sha256": "861807886dfc63e60cc93f934751114ef05121f7346629ad309b3a558d29c92b"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/results/swift-mlx-wait-owner-smwo1/REPORT.md",
+  "bytes": 9154,
+  "sha256": "9ca7714635d36a232102b243568687288675af1d285e17661185790c5aab6ebf"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/results/joined-result-delivery-jrd1/REPORT.md",
+  "bytes": 10048,
+  "sha256": "ba659a794cd4acd064db135623067d947ee37d57074037e3ed3d27a9af01c20d"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/results/return-service-priority-rsp2/REPORT.md",
+  "bytes": 12238,
+  "sha256": "340c48d3760d0e9473d3fa97cf8031ec7f066a73ee94a432b5a940af27553e47"
+ },
+ {
+  "fact": "F3",
+  "path": "legacy/results/batch5/decode-cost-eight-shape-synthesis-REPORT.md",
+  "bytes": 16437,
+  "sha256": "1fe429c69a32ee498802941eb9348d6ea03dda0d2f724575e60c957082a95c3f"
+ },
+ {
+  "fact": "F4",
+  "path": "legacy/results/return-service-priority-rsp1/REPORT.md",
+  "bytes": 16389,
+  "sha256": "dcf492043b8d712282ab574e57e39cafce7199d6a1f3d056eccad345722e3d0d"
+ },
+ {
+  "fact": "F4",
+  "path": "legacy/results/return-service-priority-rsp2/REPORT.md",
+  "bytes": 12238,
+  "sha256": "340c48d3760d0e9473d3fa97cf8031ec7f066a73ee94a432b5a940af27553e47"
+ },
+ {
+  "fact": "F4",
+  "path": "legacy/results/external-demand-ebd1/REPORT.md",
+  "bytes": 10168,
+  "sha256": "95120012bf0d1a9c656fde9be52ed77e40ed9c52ad6fbb2dacf69bbce30a43ee"
+ },
+ {
+  "fact": "F4",
+  "path": "legacy/results/joined-result-delivery-jrd1/REPORT.md",
+  "bytes": 10048,
+  "sha256": "ba659a794cd4acd064db135623067d947ee37d57074037e3ed3d27a9af01c20d"
+ },
+ {
+  "fact": "F4",
+  "path": "legacy/results/source-response-contract-src1/REPORT.md",
+  "bytes": 7780,
+  "sha256": "e8e67a12b639918dd03424543e3076bdb1644554fce4795c4c96d98817de99d6"
+ },
+ {
+  "fact": "F4",
+  "path": "legacy/results/backend-return-service-brs1/REPORT.md",
+  "bytes": 10341,
+  "sha256": "db26869fc674a93b41234203509010ebb3dcebdb094c5d363710d3563fe9f8c8"
+ },
+ {
+  "fact": "F5",
+  "path": "legacy/results/PILOT_REPORT.md",
+  "bytes": 8020,
+  "sha256": "1ede75cf53b65d424277cbabc8b1a6e78352896a9ffecee5cc13f294a2c62bb3"
+ },
+ {
+  "fact": "F6",
+  "path": "legacy/results/batch5/decode-cost-eight-shape-synthesis-REPORT.md",
+  "bytes": 16437,
+  "sha256": "1fe429c69a32ee498802941eb9348d6ea03dda0d2f724575e60c957082a95c3f"
+ },
+ {
+  "fact": "F7",
+  "path": "legacy/results/core-language-runtime-mlx-fork-cm2/REPORT.md",
+  "bytes": 10146,
+  "sha256": "861807886dfc63e60cc93f934751114ef05121f7346629ad309b3a558d29c92b"
+ },
+ {
+  "fact": "F7",
+  "path": "legacy/results/backend-return-service-brs1/REPORT.md",
+  "bytes": 10341,
+  "sha256": "db26869fc674a93b41234203509010ebb3dcebdb094c5d363710d3563fe9f8c8"
+ },
+ {
+  "fact": "F7",
+  "path": "legacy/results/swift-mlx-wait-owner-smwo1/REPORT.md",
+  "bytes": 9154,
+  "sha256": "9ca7714635d36a232102b243568687288675af1d285e17661185790c5aab6ebf"
+ },
+ {
+  "fact": "F7",
+  "path": "legacy/results/joined-result-delivery-jrd1/REPORT.md",
+  "bytes": 10048,
+  "sha256": "ba659a794cd4acd064db135623067d947ee37d57074037e3ed3d27a9af01c20d"
+ },
+ {
+  "fact": "F7",
+  "path": "legacy/results/return-service-priority-rsp2/REPORT.md",
+  "bytes": 12238,
+  "sha256": "340c48d3760d0e9473d3fa97cf8031ec7f066a73ee94a432b5a940af27553e47"
+ },
+ {
+  "fact": "F8",
+  "path": "legacy/results/batch5/model-effects-REPORT.md",
+  "bytes": 9350,
+  "sha256": "43435bc820ba8a10e99d6fee69cce78d53546d5298be340010a2305f01a61043"
+ },
+ {
+  "fact": "memo",
+  "path": "legacy/docs/P8_LANGUAGE_SUBSET_PROPOSAL.md",
+  "bytes": 22665,
+  "sha256": "2b3e55775d63fdb99d47754349b306da92b8b071acad8127c54cecc7b039f7ca"
+ },
+ {
+  "fact": "memo",
+  "path": "legacy/experiments/wait-responsibility-proof-v1/CONDITIONAL-PROGRESS.md",
+  "bytes": 12670,
+  "sha256": "b1c872634060c13b45effc6d3334d4a78715a17c9bb0e48f6199208d34fd0bd7"
+ },
+ {
+  "fact": "memo",
+  "path": "legacy/results/batch5/protocol-model-REPORT.md",
+  "bytes": 6624,
+  "sha256": "c6df959aeef7befe3847e8dbc419f2587d3d789b00c9b968d154ccfd25923ac3"
+ },
+ {
+  "fact": "memo",
+  "path": "/Users/fbsh/swift/RESEARCH_DIRECTION.md",
+  "bytes": 18452,
+  "sha256": "02014aa4cbf593dd55b690c67ff0b69e733c419f52e915565c0124f4ab6c00d3"
+ }
+]
