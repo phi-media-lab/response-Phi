@@ -192,7 +192,7 @@ package enum ParentEntrypoint {
             "timing": .object(["host_origin_ns": .string(String(deadline.origin)),
                 "snapshot_ns": .string(String(DispatchTime.now().uptimeNanoseconds)),
                 "host_budget_seconds": .integer(deadline.seconds), "host_deadline_won": .bool(timedOut)]),
-            "trials": .array(result.trials), "result": result.value, "host_roots": evidence.snapshot()])
+            "trials": .array(result.trials), "result": result.value, "host_roots": evidence.snapshot().boundedForReport()])
     }
 
     package static func runParserCPU() {

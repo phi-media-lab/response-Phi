@@ -416,6 +416,22 @@ func runParentCompositionControls(fixture: String, sourcesDirectory: URL, eviden
         "native_control": control?.snapshot() ?? .null, "caller": caller?.snapshot() ?? .null, "tool_reference": reference,
         "model_execution": .bool(false), "performance_claimed": .bool(false),
         "scope": .string("fixed checked CPU composition; requires independent raw/source review")])
-    try saveHostJSON(trial, to: evidenceDirectory.appendingPathComponent("trial.json"))
-    return HostWorkResult(status: complete ? "passed" : "failed", exitCode: complete ? 0 : 1, value: trial, trials: [trial])
+    // Bound the trial to a size a bounded run can actually persist; oversized
+    // self-verification sub-structures (ledger closures, compared check values)
+    // become size stubs. The compact summary below still references this file.
+    try saveHostJSON(trial.boundedForReport(), to: evidenceDirectory.appendingPathComponent("trial.json"))
+    // The full trial is preserved on disk in trial.json. The returned result
+    // references it by file identity (path + bytes + sha256) plus a compact
+    // summary, instead of re-embedding the whole object in the top-level
+    // result.json. A composition trial embeds full ledger closures and compared
+    // check values and can exceed 800 MB; re-serializing that into result.json
+    // overran the host time budget and looked like a teardown hang. This bounds
+    // the top-level report without dropping or altering any saved evidence.
+    let trialIdentity = try hostFileIdentity(evidenceDirectory.appendingPathComponent("trial.json"))
+    let summary: JSONValue = .object(["trial_id": .string(fixture), "fixture": .string(fixture),
+        "passed": .bool(complete), "first_failure": failure, "cleanup_errors": .array(cleanupErrors),
+        "check_count": .integer(checks.rows.count), "trial_file": trialIdentity,
+        "model_execution": .bool(false), "performance_claimed": .bool(false),
+        "scope": .string("full trial preserved in trial.json; result references it by identity to bound top-level size")])
+    return HostWorkResult(status: complete ? "passed" : "failed", exitCode: complete ? 0 : 1, value: summary, trials: [summary])
 }

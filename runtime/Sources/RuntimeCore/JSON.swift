@@ -56,6 +56,37 @@ public indirect enum JSONValue: Sendable, Equatable {
         return token
     }
 
+    /// Bound the serialized size of this value for a report or evidence file.
+    /// Any sub-value whose (approximate) encoded form exceeds `limit` bytes is
+    /// replaced by a compact stub recording its kind and approximate size. Small
+    /// sub-values pass through unchanged. One O(n) bottom-up pass. This is used
+    /// only for report files: the pass/fail decision is already made by the
+    /// checks, and an oversized self-verification dump exceeds what a bounded run
+    /// can persist, so it is recorded as a size note rather than in full.
+    public func boundedForReport(limit: Int = 262_144) -> JSONValue { bounded(limit).0 }
+    private func bounded(_ limit: Int) -> (JSONValue, Int) {
+        switch self {
+        case .null: return (self, 4)
+        case .bool(let b): return (self, b ? 4 : 5)
+        case .number(let s): return (self, s.utf8.count)
+        case .string(let s): return (self, s.utf8.count + 2)
+        case .object(let fields):
+            var out = [String: JSONValue](); var total = 2
+            for (key, value) in fields {
+                let (bv, bn) = value.bounded(limit); out[key] = bv; total += key.utf8.count + 4 + bn
+            }
+            if total <= limit { return (.object(out), total) }
+            return (.object(["__elided__": .bool(true), "kind": .string("object"),
+                "approx_bytes": .integer(total), "keys": .integer(fields.count)]), 72)
+        case .array(let items):
+            var out = [JSONValue](); var total = 2
+            for value in items { let (bv, bn) = value.bounded(limit); out.append(bv); total += bn + 1 }
+            if total <= limit { return (.array(out), total) }
+            return (.object(["__elided__": .bool(true), "kind": .string("array"),
+                "approx_bytes": .integer(total), "length": .integer(items.count)]), 72)
+        }
+    }
+
     /// A wire writer, not Python's source-canonical encoding.
     public func encoded() throws -> Data {
         var bytes = [UInt8]()
