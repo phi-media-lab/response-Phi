@@ -140,4 +140,4 @@
 | CC-09 | 机制消融三级别的 N 情境在真实 Apple MLX 上各跑三次全部通过，A/B 首 token 均为 72/271，与 CM2、SMWO1 一致，三次复现 | results/mechanism-ablation-v1/gpu-l{0,1,2}/N,N-run2,N-run3, experiments/mechanism-ablation-v1/REPORT.md（§7） | 每级 3，GPU | 安全排序证据；非上界 | 已建立 |
 | CC-10 | L2 受检语言运行时（cm2-checked，FORK 等待者取消加 owner KV 归还）在真实 MLX 上通过修复后的 N 情境，exit 0，11.0 秒 | results/mechanism-ablation-v1/gpu-l2/N/driver/result.json | 1，GPU | 单会话 n=1 | 已建立 |
 | CC-11 | SRC1 B 首次在真实 MLX 上跑通父组合（src1b-checked，真实 worker）：exit 0，子服务 B 真实首 token 271 作为 argument_token 真正传入 call_tool 读真实 tokenizer，backend mlx 非 stub | results/src1b-convergence-v1/gpu-p01/real-model-v1/driver/result.json, experiments/src1b-convergence-v1/REPORT.md（§7） | 1，GPU | n=1；未验证完整 logits | 已建立 |
-| CC-12 | T01 图变异负例族按建议 5 封顶在已装配 12/64，不手工扩写余下 52：无统一 runner，量产有构造错误负例假证检查器之险；前进路径是一次成型的参数化 runner | experiments/src1b-convergence-v1/REPORT.md（§8） | 设计决策 | 统一 runner 是否实现由 root 决定 | 决策 |
+| CC-12 | T01 图变异负例族封顶在 12/64：单检查器在重型族每例 19-26 分钟（P01 1572s、F01-01 1147s 等），余 52 变体是数小时到一天的 campaign 加 626 MB SHA 链图上的正确变异；成本强制封顶，不伪造无法验证的负例 | experiments/src1b-convergence-v1/REPORT.md（§8），legacy 既有 run.json 耗时 | 成本核查 | 统一 runner 是否实现由 root 决定 | 决策 |
