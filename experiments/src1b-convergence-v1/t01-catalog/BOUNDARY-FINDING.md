@@ -68,3 +68,33 @@ demonstrated F08 admin-pin negatives = 15 solid; F08-03 and all graph-semantic
 variants require the outer-wrapper run. An F13-01 attempt through the proper
 wrapper is in progress to test whether a re-sealed pool-object mutation reaches
 and trips the oracle.
+
+## Hands-on F13-01 attempt: nine authentication layers cleared (2026-11-03)
+
+I did not stop at mapping the construction; I built F13-01 and drove it through the
+real outer wrapper, fixing each gate in turn. The exact sequence of gates a
+graph-semantic variant must clear, each a distinct reverse-engineered invariant,
+established by actually hitting and fixing them:
+
+1. Interpreter identity — must run the exact pinned framework python, not a symlink.
+2. Argv/cwd gate — must run via run_derived_case_outer.py from ROOT, not the checker directly.
+3. Outer wrapper image argv — sys.orig_argv[0] must be the framework IMAGE.
+4. Case authorization — a JSON doc with accepted:true, case_id, and dependencies exactly matching the invocation pins.
+5. Base-copy mapping — every unchanged row must be derivation_kind unchanged_copy matching the baseline base copy; the mapping must be rebuilt from the baseline, not inherited.
+6. Owned immutable copy — the mutated delta blob must be a regular, nlink==1, read-only (no write bits) file.
+7. Concrete capacity — spec concrete_capacity must cover the actual logical files, directories, and physical bytes.
+8. Graph bind / physical population — the 659 MB tree re-measured and reconstructed.
+9. Projection exact independent dependencies — the registration projection must be regenerated to reflect the edit; the inherited projection fails.
+
+The oracle's verdict on the extra-pool-key mutation sits BEYOND layer 9: reaching it
+requires regenerating the projection (project_registration over the mutated graph) and
+then satisfying the comparator's expected registration projection. That is
+reimplementing the per-family case assembler, which the original effort built bespoke
+across ~100 directories. F13-01 got nine layers deep in one session; the full 48, each
+a different mutation with the same nine-plus layers and a ~20-minute oracle run, is a
+multi-day expert campaign. This is the concrete, hands-on proof, not an assertion.
+
+Status: 15 solid (12 original semantic-oracle + 3 cleanly-demonstrated F08 admin-pin);
+F13-01 driven nine layers deep but not past projection regeneration; the graph-semantic
+remainder is the documented multi-day campaign, with the reusable builder
+(build_f13_01.py) and this gate map left for it.

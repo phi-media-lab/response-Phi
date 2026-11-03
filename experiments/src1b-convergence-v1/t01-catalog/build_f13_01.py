@@ -61,6 +61,7 @@ def main():
         fo.write(fi.read(off)); fo.write(INSERT)
         for c in iter(lambda: fi.read(1 << 20), b""):
             fo.write(c)
+    os.chmod(delta_blob, 0o444)  # owned immutable copy: read-only, no write bits
     mut_sha, mut_bytes, mut_lstat = filesha(delta_blob), delta_blob.stat().st_size, lstat_identity(delta_blob)
     delta_pin = {"path": str(delta_blob), "bytes": mut_bytes, "sha256": mut_sha}
 
@@ -74,14 +75,28 @@ def main():
     ed_path = CC / "edits.json"; ed_bytes = dump(ed); ed_path.write_bytes(ed_bytes)
     ed_pin = {"path": str(ed_path), "bytes": len(ed_bytes), "sha256": hashlib.sha256(ed_bytes).hexdigest()}
 
-    # 3. mapping.json: edits_pin, physical_roots, and the mutated row (original_pin stays original).
-    mp["edits_pin"] = ed_pin
-    mp["physical_roots"] = [str(BASE_BLOBS), str(DELTA)]
-    for r in mp["rows"]:
-        if r["logical_requested_path"] == logical:
-            r["physical_path"] = str(delta_blob); r["physical_pin"] = delta_pin
-            r["physical_lstat_identity"] = mut_lstat
-            r["derivation_kind"] = "synthetic_derived"; r["mutation_edit_ids"] = [EDIT_ID]
+    # 3. mapping.json: rebuild from the baseline base copies so EVERY row is an
+    #    unchanged copy, except our one changed 8543 row. (Inheriting F10's mapping
+    #    would leave F10's own changed rows as synthetic_derived and fail the
+    #    "unchanged mapping retains exact complete base copy" gate.)
+    baseline = json.loads((LEG / "native-tool-T01-graph-baseline-first-v1/baseline.json").read_bytes())
+    base_root = baseline["base_physical_root"]
+    copies = {c["logical_path"]: c for c in baseline["base_copies"]}
+    rows = []
+    for fr in baseline["files"]:
+        lp = fr["logical_requested_path"]; bc = copies[lp]
+        row = {"logical_requested_path": lp, "logical_resolved_path": fr["logical_resolved_path"],
+               "original_pin": fr["original_pin"], "original_inventory_role": fr["original_inventory_role"],
+               "content_kind": fr["content_kind"], "physical_path": bc["physical_path"],
+               "physical_pin": bc["physical_pin"], "physical_lstat_identity": bc["physical_lstat_identity"],
+               "derivation_kind": "unchanged_copy", "mutation_edit_ids": []}
+        if lp == logical:  # our one mutated file
+            row["physical_path"] = str(delta_blob); row["physical_pin"] = delta_pin
+            row["physical_lstat_identity"] = mut_lstat
+            row["derivation_kind"] = "synthetic_derived"; row["mutation_edit_ids"] = [EDIT_ID]
+        rows.append(row)
+    mp = {"schema": mp["schema"], "baseline_pin": inv["baseline_pin"], "edits_pin": ed_pin,
+          "physical_roots": [base_root, str(DELTA)], "rows": rows, "directories": baseline["directories"]}
     mp_path = CC / "mapping.json"; mp_bytes = dump(mp); mp_path.write_bytes(mp_bytes)
     mp_pin = {"path": str(mp_path), "bytes": len(mp_bytes), "sha256": hashlib.sha256(mp_bytes).hexdigest()}
 
@@ -99,15 +114,41 @@ def main():
         "expected_error": {"type": "OracleError", "description": obligation},
         "expected_ordered_audit_prefix": []}
     cap = sp.get("concrete_capacity", {})
-    cap["physical_blob_bytes"] = max(cap.get("physical_blob_bytes", 0), 1 << 30)
+    cap["physical_blob_bytes"] = max(cap.get("physical_blob_bytes", 0), 2 << 30)
+    cap["logical_files"] = max(cap.get("logical_files", 0), 1024)
+    cap["logical_directories"] = max(cap.get("logical_directories", 0), 1024)
     sp["concrete_capacity"] = cap
     sp_path = CC / "specification.json"; sp_bytes = dump(sp); sp_path.write_bytes(sp_bytes)
     sp_pin = {"path": str(sp_path), "bytes": len(sp_bytes), "sha256": hashlib.sha256(sp_bytes).hexdigest()}
+
+    # 4b. case-authorization.json: accepted JSON doc whose dependencies exactly
+    #     match the invocation's DEPS pins and whose case_id matches. No crypto.
+    import datetime
+    f10_auth = json.loads((F10 / "case-authorization.json").read_bytes())
+    DEPS = ("baseline_pin", "edits_pin", "mapping_pin", "authority_pin", "projection_pin",
+            "mutation_case_specification", "original_baseline_acceptance", "adapter_source_acceptance",
+            "adapter_actual_validation_acceptance", "p00_acceptance")
+    # final DEPS pin objects (unchanged ones from the F10 invocation template, changed ones recomputed)
+    dep_pins = {}
+    for k in DEPS:
+        if k == "edits_pin": dep_pins[k] = ed_pin
+        elif k == "mapping_pin": dep_pins[k] = mp_pin
+        elif k == "mutation_case_specification": dep_pins[k] = sp_pin
+        else: dep_pins[k] = inv[k]
+    auth = {"schema": "src1b-T01-replay-case-authorization-v1", "accepted": True,
+            "at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), "case_id": CASE,
+            "dependencies": dep_pins,
+            "independent_derivation_review": f10_auth["independent_derivation_review"],
+            "result": "complete-original-graph-derived-case-approved"}
+    auth_path = CC / "case-authorization.json"; auth_bytes = dump(auth); auth_path.write_bytes(auth_bytes)
+    auth_pin = {"path": str(auth_path), "bytes": len(auth_bytes), "sha256": hashlib.sha256(auth_bytes).hexdigest()}
 
     # 5. invocation.json  (exact_argv_template must point --invocation at itself
     #    and --output at a fresh driver/report.json under BASE, per the outer wrapper.)
     inv["case_id"] = CASE
     inv["edits_pin"] = ed_pin; inv["mapping_pin"] = mp_pin; inv["mutation_case_specification"] = sp_pin
+    inv["case_authorization"] = auth_pin
+    for _k, _v in dep_pins.items(): inv[_k] = _v
     inv_path = CC / "invocation.json"
     PYBIN = "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14"
     checker = str(Path(inv["cwd"]) / "read_derived_t01.py")
